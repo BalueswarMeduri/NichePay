@@ -5,7 +5,7 @@
 
 ---
 
-## Table of Contents
+##  Table of Contents
 
 1. [Problem Statement](#problem-statement)
 2. [Our Solution — NichePay](#our-solution--nichepay)
@@ -120,65 +120,129 @@ For the hackathon, NichePay simulates the full insurance lifecycle. In the real-
 
 ## Application Workflow
 
-### Step 1 — Registration & Zomato Linking
-- Worker downloads NichePay (PWA — no app store needed).
+NichePay has two distinct flows running in parallel — a one-time **plan purchase flow** and a continuous **automated claim flow**.
+
+---
+
+### Flow A — Plan Purchase (One-Time)
+
+#### Step 1 — Registration & Zomato Linking
+- Worker opens NichePay (PWA — no app store needed).
 - Registers using their **Zomato Delivery Partner ID**.
-- Why Zomato ID? It serves two purposes:
-  1. **Verify the worker is currently active** on the Zomato platform.
-  2. **Fetch order acceptance data** in real time to validate claims (explained in triggers section).
+- Why Zomato ID? Two reasons:
+  1. **Verify the worker is currently active** on the Zomato platform — if Zomato marks them inactive, coverage auto-pauses.
+  2. **Fetch real-time order acceptance data** during disruption windows to validate claim eligibility.
 
-### Step 2 — Shift Window Selection
-During onboarding, the worker selects their typical working shift:
+#### Step 2 — Plan Selection & Payment (PayPal)
+- Worker selects a weekly plan (Basic / Standard / Pro).
+- Payment is processed via **PayPal**.
+- On successful payment, Policy Service records the active plan.
+- Notification Service sends a confirmation SMS: *"Your NichePay coverage is active this week."*
 
-| Shift | Hours |
-|---|---|
-| Morning | 6 AM – 12 PM |
-| Afternoon | 12 PM – 6 PM |
-| Night | 6 PM – 9 PM |
-| Full Day | 6 AM – 9 PM |
+> **No shift window selection needed.** NichePay covers the worker for the full calendar day and only pays for hours they were actually logged into Zomato — so part-time and full-time workers are handled fairly without any manual input.
 
-**Why is this important?**
-- A part-time morning worker should not receive a payout for an afternoon disruption.
-- Shift data allows precise, per-hour payout calculation.
-- It also acts as a fraud prevention signal — if GPS activity consistently appears outside the declared shift, the ML model flags it.
+---
 
-### Step 3 — Buy a Weekly Plan
-The worker selects and pays for a weekly insurance plan. Premium is charged every Monday. Coverage is active only for the declared shift window on active Zomato login days.
+### Flow B — Automated Claim (Runs Continuously)
 
-### Step 4 — Disruption Detection (Automated)
-NichePay continuously monitors:
-- **Weather** (Open-Meteo API) — rain intensity, temperature, cached per pin code in Redis every 30 minutes.
-- **Air Quality** (WAQI / OpenWeather API) — AQI levels per zone, cached every 30 minutes.
-- **Flood & Disaster Alerts** (ReliefWeb API / IMD RSS) — official government flood and disaster notifications.
-- **Traffic** (TomTom Traffic API) — zone accessibility check, used as a supporting signal.
-- **Strike / Curfew** (NewsAPI keyword detection) — scans for bandh, hartal, curfew keywords in Telugu/Hindi.
-- **Zone Mapping** (OpenStreetMap Nominatim) — maps worker's GPS coordinates to pin code and zone.
-- **Zone Manager Manual Override** — admin can manually confirm a disruption (explained in edge cases).
+#### Step 3 — Zone Registration Service (Once at Login)
+- When the worker opens NichePay and goes online for the day, the app captures their GPS location **once** via Browser Geolocation API.
+- OpenStreetMap Nominatim resolves the coordinates to a pincode and zone name.
+- This zone is stored in Redis under the worker's daily key (TTL 24 hours).
+- That single pincode is used for **all disruption lookups for the entire day** — no further GPS tracking needed.
 
-### Step 5 — Eligibility Verification (AI-Powered)
-When a disruption trigger fires:
-1. Was the worker logged into Zomato today? (Attendance check)
-2. Was the disruption within the worker's declared shift window?
-3. Did the worker accept zero orders during the disruption period?
-4. Does GPS data show the worker was in the affected zone?
-
-All four conditions must pass for payout eligibility.
-
-### Step 6 — Payout Calculation
-Payout is **proportional to disrupted hours**, not a flat amount.
+Why only once? Zomato assigns delivery orders within a 15 km radius of the worker's login location. The worker's zone doesn't change during the day — so one capture is enough to know which zone's weather data applies to them.
 
 ```
-Payout = (Base Daily Wage × Disrupted Hours) / Total Shift Hours
+Worker goes online in NichePay
+        ↓
+Single GPS capture → Nominatim resolves to pincode + zone
+        ↓
+Redis: worker:wk_abc123:zone → "520001" (TTL 24hr)
+        ↓
+One event pushed to RabbitMQ direct queue [location.update]
+        ↓
+ML service uses this pincode all day for disruption lookups
 ```
 
-Example: Worker earns ₹700/day on a 9-hour shift. Rain disrupts 3 hours.
-```
-Payout = (700 × 3) / 9 = ₹233
-```
-Payout is capped at the weekly coverage limit defined by the chosen plan.
+- Admin Dashboard can also push manual strike/curfew confirmations into the same queue.
 
-### Step 7 — Instant Credit
-Payout is credited instantly via Razorpay (test mode) / UPI simulator. Worker receives an SMS and in-app notification: *"₹233 credited to your UPI for 3 hours of rain disruption today."*
+#### Step 4 — ML Service Builds the Day's Disruption Array
+The ML Service picks up each location event and builds a full-day disruption picture for the worker's zone:
+
+1. **Redis cache check first** — look up zone disruption data for today's date + pin code.
+   - **Cache hit** → return cached disruption array immediately (no API call).
+   - **Cache miss** → call external APIs (Open-Meteo, WAQI, NewsAPI), fetch data, store result in Redis (TTL 30 min).
+
+2. **Location radius match** — if another worker in the same zone (within 2–3 km) already has a cached result, reuse it. No duplicate API calls.
+
+3. **Disruption array stored per calendar date per zone:**
+```json
+{
+  "date": "2026-03-18",
+  "zone": "Vijayawada-Zone3",
+  "disruptions": [
+    { "time": "03:00–05:00", "type": "rain", "level": "heavy"  },
+    { "time": "19:00–24:00", "type": "rain", "level": "medium" }
+  ]
+}
+```
+
+4. Rain crossing midnight is split cleanly at the day boundary:
+   - `23:00–24:00` is stored under March 18's array.
+   - `00:00–01:00` is stored under March 19's array.
+   - Nothing is missed, nothing is double-counted.
+
+#### Step 5 — Daily Cron Job (6 AM Next Day)
+Every morning at **6 AM**, a scheduled cron job processes **yesterday's full calendar day (00:00–23:59)** for all active policy holders.
+
+Why 6 AM and not midnight? Because some workers work until 1–2 AM. By running at 6 AM, we guarantee the previous day is fully over for every worker — including late-night shifts. The worker wakes up and the payout is already in their UPI.
+
+```
+Cron fires at 6 AM on March 19
+       ↓
+Fetches March 18's complete disruption array from Redis/DB
+       ↓
+For each active worker — runs Claims Controller checks:
+  1. Was worker logged into Zomato on March 18? (attendance)
+  2. For each disruption window — did worker accept zero orders?
+  3. Cross-match: only windows where login=true AND orders=0 COUNT
+  4. Total disrupted hours calculated
+  5. Isolation Forest fraud check on full day's pattern
+       ↓
+If eligible → publish to RabbitMQ pub/sub fanout [claim.eligible]
+       ↓
+  ├── Queue 1 → Payment Service    (payout calc + UPI/Razorpay credit)
+  ├── Queue 2 → Notification Service (SMS: "₹175 credited for March 18")
+  └── Queue 3 → Dashboard Service   (admin analytics updated)
+```
+
+#### Step 6 — Payout Calculation
+Payout is based on **actual login hours that day**, not a fixed shift window. This makes it fair for both part-time and full-time workers automatically.
+
+```
+Payout = (Daily Wage ÷ Login Hours that day) × Total Disrupted Hours
+```
+
+**Example — Ravi works 6 AM to 10 PM (16 hours). Rain from 7–9 AM and 2–4 PM:**
+
+```
+Weather data for March 18:
+  00:00–06:00 → No rain        ← Ravi not logged in, irrelevant
+  07:00–09:00 → Heavy rain     ← Ravi logged in ✅, zero orders ✅ → 2hrs COUNT
+  09:00–14:00 → No rain        ← Ravi working normally
+  14:00–16:00 → Medium rain    ← Ravi logged in ✅, zero orders ✅ → 2hrs COUNT
+  16:00–22:00 → No rain        ← Ravi working normally
+  22:00–24:00 → No rain        ← Ravi logged out, irrelevant
+
+Total disrupted hours = 4
+Login hours that day  = 16
+Daily wage            = ₹700
+
+Payout = (700 ÷ 16) × 4 = ₹175
+```
+
+Payout is capped at the weekly coverage limit of the chosen plan.
 
 ---
 
@@ -194,30 +258,30 @@ Payout is credited instantly via Razorpay (test mode) / UPI simulator. Worker re
 
 ---
 
-## Platform Choice — Web (PWA) and Why Not Native Mobile
+## Platform Choice — Web (PWA)
 
-The judges require us to justify this choice explicitly.
+For this hackathon, we are building NichePay as a **web-based Progressive Web App (PWA)**. This is a deliberate choice based on speed of development and the constraints of a 6-week timeline — not a permanent architectural decision.
 
-### We chose: Web App built as a Progressive Web App (PWA)
+### Why Web for the Hackathon
 
-### Why not a native Android/iOS app?
+- One codebase serves all devices — Android, iOS, desktop — without separate builds.
+- No Play Store or App Store approval process, which would eat into our development time.
+- Shareable via a simple WhatsApp link — workers tap it, the app opens in Chrome instantly, no installation needed.
+- PWAs support push notifications for payout alerts and background sync for zone registration at login.
+- The admin/insurer dashboard works naturally on desktop from the same codebase.
+- Auto-updates on every visit — no manual update step for workers.
 
-| Factor | Native App | PWA (Our Choice) |
-|---|---|---|
-| Installation | Requires Play Store download | Opens directly in browser — zero friction |
-| Device storage | Takes 50–150 MB | Zero storage used |
-| Update deployment | User must manually update | Auto-updates on every visit |
-| Offline support | Full | Partial (service workers cache key screens) |
-| Development cost | Separate Android + iOS builds | One codebase for all devices |
-| Target user comfort | Many delivery workers avoid app installs | WhatsApp link → opens instantly in Chrome |
+### Real-World Roadmap — Native App
 
-### Why PWA works perfectly for Zomato delivery partners
-Zomato delivery partners are already using their phones constantly for the Zomato Partner App. They are comfortable with Chrome on Android. A PWA can be shared via a simple WhatsApp link — the most natural distribution channel for this demographic. They tap the link, the app opens, they register in under 2 minutes. No Play Store, no permissions dialog, no storage worries.
+A web app has real limitations for delivery workers who are constantly on the move with poor connectivity. In the production version beyond this hackathon, NichePay would ship as a **native Android app** (React Native), because:
 
-Additionally, PWAs support **push notifications** (for payout alerts), **background sync** (for GPS pinging while the screen is off), and **home screen install prompts** — giving a near-native experience without the friction of app store distribution.
+- Full offline support — worker can go online even without internet, syncs when connection restores.
+- Background location access without needing the browser open.
+- Better performance on low-end Android devices (₹5,000–₹8,000 range — the typical Zomato partner phone).
+- Home screen presence — workers are more likely to open a dedicated app daily than a browser tab.
+- Native push notifications are more reliable than PWA push on Android.
 
-### Why not a desktop web app only?
-Delivery partners are on the move. All interactions — going online, checking payout status, viewing coverage — happen on a mobile screen. The PWA is built **mobile-first** with a responsive layout that also works on desktop for the admin/insurer dashboard.
+For Phase 1 and Phase 2 of this hackathon, the PWA delivers full functionality. The native app is the natural next step post-hackathon.
 
 ---
 
@@ -251,7 +315,7 @@ A parametric trigger is a measurable, verifiable real-world condition that autom
 ### Edge Case 1 — Rain Stops Mid-Shift
 **Problem:** It rains from 8 AM to 10 AM, then stops. Worker goes back to work at 11 AM and earns normally. If we give a full-day payout, it's unfair to the pool.
 
-**Solution:** NichePay uses hourly weather polling (cached in Redis). Payout is calculated only for the hours the trigger was active AND the worker had zero order activity. Post-rain earnings are not compensated.
+**Solution:** The disruption array stores exact time windows. The Claims Controller only counts windows where both conditions are true — rain active AND worker accepted zero orders. Post-rain hours where the worker resumed accepting orders are not counted. Payout is calculated only for the exact disrupted hours, not the full day.
 
 ---
 
@@ -286,10 +350,10 @@ A parametric trigger is a measurable, verifiable real-world condition that autom
 
 ---
 
-### Edge Case 5 — Shift Mismatch
-**Problem:** Worker declared Morning shift (6 AM–12 PM) but disruption occurred at 3 PM.
+### Edge Case 5 — Rain Crosses Midnight (e.g. 11 PM to 1 AM)
+**Problem:** Rain starts on March 18 at 11 PM and ends on March 19 at 1 AM. Calculating at midnight would split this event across two runs and risk missing or double-counting it.
 
-**Solution:** All disruption triggers are evaluated only within the worker's declared shift window. A 3 PM trigger has zero effect on a morning-shift worker's policy.
+**Solution:** When storing disruption data, the ML service splits rain events cleanly at the day boundary (00:00). The March 18 disruption array stores `23:00–24:00`. The March 19 array stores `00:00–01:00`. Each date's array is self-contained. The 6 AM cron processes each date independently — nothing is missed, nothing is double-counted.
 
 ---
 
@@ -425,50 +489,92 @@ Isolation Forest learns what "normal" worker behavior looks like (typical GPS mo
 
 ## System Architecture
 
+NichePay is built around two separate flows that share infrastructure but operate independently.
+
+---
+
+### Flow A — Plan Purchase
+
+```
+Auth Service (Zomato ID login)
+       ↓
+Policy Service (plan choice — no shift window needed)
+       ↓
+Payment Service (PayPal — one-time weekly fee)
+       ↓
+Notification Service (plan confirmed SMS)
+```
+
+---
+
+### Flow B — Automated Claim
+
+```
+At login (once per day):
+Zone Registration Service (single GPS capture)
+        ↓
+Nominatim resolves GPS → pincode + zone name
+        ↓
+Redis: worker:wk_abc123:zone → "520001" (TTL 24hr)
+        ↓
+One event pushed to RabbitMQ direct queue [location.update]
+  ← Admin Dashboard also feeds here (manual strike confirm)
+        ↓
+ML Service consumes:
+  1. Check Redis cache for zone disruption data (date + pincode key)
+     ├── Cache hit  → return cached disruption array
+     └── Cache miss → call Open-Meteo / WAQI / NewsAPI
+                      → split midnight-crossing rain at day boundary
+                      → store under date key in Redis (TTL 30 min)
+                      → location radius match (2–3 km)
+  2. Random Forest → zone risk score
+  3. Stores: { date, zone, disruptions: [{time, type, level}] }
+
+────────────────────────────────────────────
+Next day at 6 AM — Daily Cron Job fires:
+────────────────────────────────────────────
+  Fetches YESTERDAY's complete disruption array (00:00–23:59)
+        ↓
+Claims Controller — for each active worker:
+  1. Was worker logged into Zomato yesterday? (attendance)
+  2. For each disruption window:
+     → Login = true AND orders accepted = 0 → hours COUNT
+  3. Total disrupted hours accumulated
+  4. Isolation Forest fraud check on full day pattern
+        ↓
+If eligible → publish to RabbitMQ pub/sub fanout [claim.eligible]
+        ↓
+  ├── Queue 1 → Payment Service    (payout = wage÷loginHrs × disruptedHrs)
+  ├── Queue 2 → Notification Service (SMS + push to worker)
+  └── Queue 3 → Dashboard Service   (admin analytics update)
+```
+
+---
+
 ### Microservices
 
-| Service | Responsibility |
-|---|---|
-| Auth Service | Zomato ID login, JWT session management |
-| User Service | Worker profile, shift window, KYC |
-| Policy Service | Plan purchase, premium billing, weekly renewal |
-| Disruption Engine | Weather + news polling, zone-level trigger evaluation |
-| ML Risk Service | Premium scoring, payout eligibility, fraud detection |
-| Claims Service | Claim creation, eligibility check, payout calculation |
-| Payment Service | Razorpay test mode / UPI mock payout processing |
-| Notification Service | SMS, WhatsApp (Twilio sandbox), in-app push |
-| Dashboard Service | Worker dashboard + Admin/Insurer analytics dashboard |
-| Dummy Zomato Service | Simulated Zomato Partner API (login status, order data) |
-| External Admin Service | Zone Manager panel for manual strike/curfew confirmation |
+| Service | Flow | Responsibility |
+|---|---|---|
+| Auth Service | A | Zomato ID login, JWT session management |
+| Policy Service | A | Plan selection, weekly billing (no shift window) |
+| Payment Service | A + B | PayPal for plan purchase; UPI/Razorpay for claim payout |
+| Notification Service | A + B | Plan confirmed SMS; payout alert SMS + push |
+| Zone Registration Service | B | Single GPS capture at login, resolves to pincode via Nominatim, stores in Redis |
+| ML Service | B | Redis check, API fallback, date-keyed disruption array, Random Forest + XGBoost |
+| Daily Cron Service | B | Fires 6 AM daily, processes yesterday for all active workers |
+| Claims Controller | B | Login + order checks per disruption window, publishes to pub/sub |
+| Dashboard Service | B | Admin analytics, loss ratio, claim history |
+| Dummy Zomato Service | B | Simulated Zomato Partner API (login status, order timeline) |
+| Admin Dashboard | B | Zone Manager panel for manual strike/curfew confirmation |
 
-### Message Queue Flow (RabbitMQ)
+---
 
-```
-Worker goes Online
-       ↓
-Location + Shift data pushed to RabbitMQ [location.update queue]
-       ↓
-ML Risk Service consumes → evaluates zone risk → updates worker score
-       ↓
-Disruption Engine fires trigger (weather/strike threshold met)
-       ↓
-Event pushed to RabbitMQ [disruption.detected queue]
-       ↓
-ML Service consumes → runs eligibility scoring
-       ↓
-If eligible → publishes to RabbitMQ Pub/Sub [claim.eligible topic]
-       ↓
-Multiple consumers subscribe:
-  ├── Payment Service    → processes payout via Razorpay/UPI
-  ├── Notification Service → sends SMS + push alert to worker
-  └── Dashboard Service  → updates admin analytics in real time
-```
+### Redis Usage (Two Separate Roles)
 
-### Caching Strategy (Redis)
-- Weather data per pin code: TTL 30 minutes
-- Worker session tokens: TTL 24 hours
-- GPS ping buffer (last known location): TTL 15 minutes
-- Rate limiting counters: TTL 1 minute
+| Redis Instance | Role | Keys & TTL |
+|---|---|---|
+| Redis (cache) | Worker zone (once per day), disruption data by date, sessions | `worker:wk_abc123:zone` TTL 24hr · `disruptions:2026-03-18:522001` TTL 24hr · sessions TTL 24hr |
+| Redis (job queue) | Daily cron job (6 AM) + weather polling cron (30 min) | Bull job queue |
 
 ---
 
@@ -484,7 +590,8 @@ Multiple consumers subscribe:
 | ML — Risk Scoring | Python + Flask + Random Forest (scikit-learn) |
 | ML — Premium Pricing | Python + Flask + XGBoost |
 | ML — Fraud Detection | Python + Flask + Isolation Forest (scikit-learn) |
-| Payment | Razorpay Test Mode / UPI Simulator |
+| Payment — Plan Purchase | PayPal (plan fee collection) |
+| Payment — Claim Payout | Razorpay Test Mode / UPI Simulator |
 | Notifications | Twilio SMS sandbox |
 | Weather & Temperature | Open-Meteo API (free, no API key required) |
 | Air Quality (AQI) | WAQI API / OpenWeather API |
