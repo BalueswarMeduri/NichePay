@@ -488,8 +488,7 @@ Isolation Forest learns what "normal" worker behavior looks like (typical GPS mo
 ---
 
 ## System Architecture
-
-NichePay is built around two separate flows that share infrastructure but operate independently.
+![WhatsApp Image 2026-03-18 at 11 37 48 AM](https://github.com/user-attachments/assets/2fc7c3d8-61cf-469b-bc7c-662e2fa9d4b1)
 
 ---
 
