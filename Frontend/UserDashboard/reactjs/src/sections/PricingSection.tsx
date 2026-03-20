@@ -7,32 +7,40 @@ import { motion } from "motion/react";
 
 export default function PricingSection() {
     return (
-        <div id="pricing" className="px-4 md:px-16 lg:px-24 xl:px-32">
-            <SectionTitle text1="Pricing" text2="Our Pricing Plans" text3="Flexible pricing options designed to meet your needs — whether you're just getting started or scaling up." />
+        <div id="pricing" className="px-4 md:px-16 lg:px-24 xl:px-32 py-24">
+            <SectionTitle 
+                text1="Pricing" 
+                text2="Simple, weekly plans" 
+                text3="Protect your income exactly how Zomato pays you — weekly. No hidden fees or lock-ins." 
+            />
 
-            <div className="flex flex-wrap items-center justify-center gap-8 mt-20">
+            <div className="flex flex-wrap items-stretch justify-center gap-8 mt-20 max-w-6xl mx-auto px-4">
                 {pricingData.map((plan: IPricing, index: number) => (
-                    <motion.div key={index} className={`w-72 text-center border border-pink-950 p-6 pb-16 rounded-xl ${plan.mostPopular ? 'bg-pink-950 relative' : 'bg-pink-950/30'}`}
-                        initial={{ y: 150, opacity: 0 }}
+                    <motion.div key={index} className={`w-full max-w-sm md:w-80 flex flex-col text-left border p-6 md:p-8 rounded-2xl transition duration-300 ${plan.mostPopular ? 'bg-primary-950/20 border-primary-500/50 relative shadow-xl shadow-primary-500/10' : 'bg-white/[0.02] border-white/10'}`}
+                        initial={{ y: 50, opacity: 0 }}
                         whileInView={{ y: 0, opacity: 1 }}
                         viewport={{ once: true }}
                         transition={{ delay: index * 0.15, type: "spring", stiffness: 320, damping: 70, mass: 1 }}
                     >
                         {plan.mostPopular && (
-                            <p className="absolute px-3 text-sm -top-3.5 left-3.5 py-1 bg-pink-400 rounded-full">Most Popular</p>
+                            <p className="absolute px-4 text-[11px] font-bold uppercase tracking-wider -top-3 left-1/2 -translate-x-1/2 py-1.5 bg-primary-500 text-white rounded-full">Most Popular</p>
                         )}
-                        <p className="font-semibold">{plan.name}</p>
-                        <h1 className="text-3xl font-semibold">${plan.price}<span className="text-gray-500 font-normal text-sm">/{plan.period}</span></h1>
-                        <ul className="list-none text-slate-300 mt-6 space-y-2">
-                            {plan.features.map((feature, index) => (
-                                <li key={index} className="flex items-center gap-2">
-                                    <CheckIcon className="size-4.5 text-pink-600" />
-                                    <p>{feature}</p>
+                        <p className="font-medium text-lg text-primary-400 mb-2">{plan.name}</p>
+                        <h1 className="text-5xl font-bold text-white mb-8 border-b border-white/10 pb-8 tracking-tight">
+                            ₹{plan.price}<span className="text-slate-500 font-medium text-lg ml-1">/{plan.period}</span>
+                        </h1>
+                        <ul className="list-none text-slate-300 space-y-5 mb-10 flex-grow">
+                            {plan.features.map((feature, i) => (
+                                <li key={i} className="flex items-start gap-4">
+                                    <div className="size-5 rounded-full bg-primary-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                        <CheckIcon className="size-3.5 text-primary-500" strokeWidth={3} />
+                                    </div>
+                                    <p className="text-[15px] leading-snug">{feature}</p>
                                 </li>
                             ))}
                         </ul>
-                        <button type="button" className={`w-full py-2.5 rounded-md font-medium mt-7 transition-all ${plan.mostPopular ? 'bg-white text-pink-600 hover:bg-slate-200' : 'bg-pink-500 hover:bg-pink-600'}`}>
-                            Get Started
+                        <button type="button" className={`w-full py-3.5 rounded-xl font-medium tracking-wide transition-all ${plan.mostPopular ? 'bg-primary-500 text-white hover:bg-primary-600' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+                            Select {plan.name}
                         </button>
                     </motion.div>
                 ))}
