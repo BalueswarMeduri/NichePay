@@ -1,11 +1,11 @@
 # 🛵 NichePay — AI-Powered Parametric Income Insurance for Zomato Delivery Partners
 
 > **Guidewire DEVTrails 2026 | Phase 1 Submission**
-> Team: [Your Team Name] | Platform: Web (PWA)
+> Team: MATRIX | Platform: Web (PWA)
 
 ---
 
-##  Table of Contents
+## Table of Contents
 
 1. [Problem Statement](#problem-statement)
 2. [Our Solution — NichePay](#our-solution--nichepay)
@@ -194,124 +194,124 @@ The ML Service picks up each location event and builds a full-day disruption pic
    - Nothing is missed, nothing is double-counted.
 
 #### Step 5 — Daily Cron Job (6 AM Next Day)
- 
+
 **What is a cron job?**
 A cron job is a scheduled task that runs automatically at a specific time every day — like an alarm clock for your server. You define the time once and it fires every single day without any manual trigger. In NichePay, we use **Bull** (a Redis-backed job queue) to schedule this, because it is already using Redis and it handles failures gracefully — if the server crashes and restarts, Bull remembers the job was not processed and retries it automatically.
- 
+
 ```js
 // How it is set up in code
 const payoutQueue = new Bull('daily-payout', { redis: process.env.REDIS_URL })
- 
+
 payoutQueue.add({}, {
   repeat: { cron: '0 6 * * *', tz: 'Asia/Kolkata' }
 })
- 
+
 payoutQueue.process(async () => {
   await processYesterdayPayouts()  // the main logic runs here
 })
 ```
- 
+
 The cron expression `'0 6 * * *'` means: fire at minute 0, hour 6, every day, every month, every weekday. The timezone is set to `Asia/Kolkata` (IST) so it always fires at 6 AM India time regardless of which country the server is hosted in.
- 
+
 ---
- 
+
 **Why 6 AM — and not midnight?**
- 
+
 The most obvious time to process "today's data" would be midnight (00:00). But this causes a serious problem for NichePay.
- 
+
 Consider Ravi — he works an evening shift and is still online on Zomato at 11:30 PM. If we run the cron at midnight, his last 90 minutes of activity have not been fully recorded yet when the calculation starts. We would miss his late-night hours, and his payout would be wrong.
- 
+
 By running at **6 AM**, we give a full 6-hour buffer after midnight. Every worker — even those who work until 1 or 2 AM — has long since logged off. The entire previous day is complete. Nothing is missed.
- 
+
 ```
 Example — why midnight fails:
- 
+
 Ravi works until 1:00 AM on March 19 (this counts as March 18 data)
- 
+
 Midnight cron fires at 00:00 on March 19:
   Ravi's activity from 23:00–01:00 not yet fully stored
   Calculation runs on incomplete data ❌
- 
+
 6 AM cron fires at 06:00 on March 19:
   Ravi logged off at 1:00 AM — 5 hours ago
   All data for March 18 is complete and stored ✅
   Calculation is accurate ✅
 ```
- 
+
 By the time the 6 AM cron completes and payouts are processed, it is around 6:05–6:10 AM. Most delivery workers wake up between 7–9 AM. **The money is in their UPI before they even pick up their phone.** That is the experience we are building.
- 
+
 ---
- 
+
 **What the cron actually does — step by step:**
- 
+
 ```
 6:00 AM on March 19 — cron fires for all active workers
- 
+
 Step 1: Fetch yesterday's date
   yesterday = "2026-03-18"
- 
+
 Step 2: Get March 18's disruption array from MongoDB
   [
     { time: "07:00–09:00", type: "rain",  level: "heavy"  },
     { time: "14:00–16:00", type: "rain",  level: "medium" },
     { time: "19:00–24:00", type: "AQI",   level: "severe" }
   ]
- 
+
 Step 3: For each active policy holder — run eligibility checks
- 
+
   Check A — Zomato login confirmation
     → Did the worker log into Zomato on March 18?
     → If NO → skip this worker entirely (voluntary day off)
     → If YES → continue to next check
- 
+
   Check B — Order acceptance per disruption window
     → For each disruption window in the array:
        Did the worker accept zero orders during that time?
        If rain was 7–9 AM but worker accepted 3 orders → those 2 hours do NOT count
        If rain was 7–9 AM and worker accepted zero orders → 2 hours COUNT
- 
+
   Check C — Cross-match result
     → Only hours where BOTH are true count:
        login = true  AND  orders accepted = 0
- 
+
 Step 4: Sum up all disrupted hours that passed both checks
- 
+
 Step 5: Isolation Forest fraud check
     → Is the claim pattern normal compared to other workers?
     → Anomaly score < 0.3 → auto approve
     → Anomaly score 0.3–0.6 → hold for manual review
     → Anomaly score > 0.6 → block and flag
- 
+
 Step 6: If approved → publish event to RabbitMQ pub/sub fanout
- 
+
   Three consumers pick it up simultaneously:
   ├── Queue 1 → Payment Service    → calculates amount, credits UPI
   ├── Queue 2 → Notification Service → sends SMS: "₹175 credited for Mar 18"
   └── Queue 3 → Dashboard Service  → updates admin loss ratio + analytics
 ```
- 
+
 **Full worked example — Ravi on March 18:**
- 
+
 ```
 Ravi logs into Zomato at 6:00 AM ✅
 Zomato login = confirmed for March 18
- 
+
 Disruption array for March 18:
   07:00–09:00 → Heavy rain
   14:00–16:00 → Medium rain
- 
+
 Order check per window:
   07:00–09:00 → Ravi accepted 0 orders → 2 hours COUNT ✅
   14:00–16:00 → Ravi accepted 2 orders (light rain, continued working) → 0 hours count ❌
- 
+
 Total disrupted hours = 2
 Login hours that day  = 16  (6 AM to 10 PM)
 Daily wage            = ₹700
- 
+
 Payout = (700 ÷ 16) × 2 = ₹87.50
- 
+
 Fraud score = 0.14 → auto approved
- 
+
 Payment of ₹87.50 credited to Ravi's UPI at 6:05 AM on March 19
 SMS sent: "NichePay: ₹87.50 credited for 2hrs heavy rain on Mar 18"
 Ravi wakes up at 8 AM and sees the credit in his UPI ✅
@@ -587,8 +587,143 @@ Isolation Forest learns what "normal" worker behavior looks like (typical GPS mo
 
 ---
 
+## Adversarial Defense & Anti-Spoofing Strategy
+
+> **Context — The Market Crash Scenario:**
+> A coordinated syndicate of 500 delivery workers used GPS spoofing apps to fake their locations inside a severe weather zone, triggering mass false payouts and draining a platform's liquidity pool. Simple GPS verification is no longer enough. This section describes how NichePay's architecture detects and stops this — at the individual level and at the ring level.
+
+---
+
+### 1. The Differentiation — Genuine Worker vs GPS Spoofer
+
+A genuine delivery partner who is stranded in heavy rain behaves very differently from someone sitting at home running a GPS spoofing app. NichePay cross-checks six independent signals to tell them apart.
+
+#### Signal 1 — Accelerometer vs GPS consistency
+A GPS spoofing app can fake coordinates. It cannot fake the phone's accelerometer. A worker genuinely stuck in rain will show micro-movements — shifting in their seat, checking the phone, slight vibrations. A spoofer sitting at home shows a perfectly stationary accelerometer while the GPS claims they are in a storm zone.
+
+**Detection rule:** If GPS places the worker in a disruption zone but accelerometer shows zero motion for more than 20 consecutive minutes → anomaly flag raised.
+
+#### Signal 2 — Network cell tower triangulation
+GPS coordinates come from the spoofing app. But the phone's cellular network connection is determined by which physical cell tower it is connected to — and that cannot be faked by an app. NichePay cross-checks the GPS-reported location against the cell tower region the phone is connected to via the browser's Network Information API.
+
+**Detection rule:** If GPS says the worker is in Vijayawada Zone 3 but the cell tower places them in a completely different district → hard flag, claim blocked immediately.
+
+#### Signal 3 — Zomato order activity cross-check
+A genuine stranded worker tried to work and could not. A spoofer never intended to work. NichePay checks the Zomato order timeline for the hours before the disruption window started. A genuine worker will show normal order acceptance activity in the morning, then a drop when disruption hit. A spoofer typically shows zero order activity all day — they never went online to work.
+
+**Detection rule:** Worker with zero order activity in the 3 hours before the disruption window started → elevated suspicion score. Combined with other signals → flag.
+
+#### Signal 4 — Login timing vs disruption trigger timing
+A genuine worker logs into Zomato at their normal time, works, then gets disrupted. A spoofer logs in suspiciously close to the moment a disruption trigger activates — because they are watching the weather app and timing their fake login accordingly.
+
+**Detection rule:** If Zomato login timestamp is within 8 minutes of the disruption trigger firing → anomaly flag. Genuine workers do not time their login to the weather.
+
+#### Signal 5 — Historical zone consistency
+Every worker has a home zone — the pincode where they registered and where they typically work. NichePay stores 4 weeks of zone history per worker. A genuine stranded worker is almost always stranded in their own zone. A spoofer may spoof into whatever zone has the highest severity disruption that day, which may be far from where they actually live.
+
+**Detection rule:** If the claimed disruption zone is more than 25 km from the worker's historical home zone and they have never worked that zone before → high suspicion score.
+
+---
+
+### 2. The Data — Detecting a Coordinated Fraud Ring
+
+Individual GPS spoofing is detectable. A coordinated ring of 500 workers is detectable at the network level — their behaviour shows statistical patterns that no genuine disruption event ever produces.
+
+#### Ring Signal 1 — Simultaneous claim spike in a zone
+In a genuine disruption, claims come in gradually as workers realise they cannot work. In a coordinated ring, hundreds of claims fire within a very tight time window — because the Telegram group sent a message saying "activate now."
+
+**Detection rule:** If more than 50 new claims from the same zone arrive within a 15-minute window → automatic pool freeze for that zone, Zone Manager alerted immediately. No payouts released until human review.
+
+#### Ring Signal 2 — Claim rate vs zone's historical baseline
+NichePay stores historical claim rates per zone per disruption type. If it rained in Vijayawada Zone 3 in previous monsoons, we know roughly how many workers typically claim. A ring attack produces a claim count 3x to 10x higher than the historical baseline for that zone and disruption severity.
+
+**Detection rule:** If current zone claim count exceeds 2.5x the historical average for that disruption type → ring alert triggered.
+
+#### Ring Signal 3 — Device fingerprint clustering
+Each worker's device has a fingerprint — browser user agent, screen resolution, device memory, installed fonts — collected at registration. Legitimate workers all have different devices. A fraud ring using the same GPS spoofing app on similar devices or sharing device profiles will show device fingerprint clustering.
+
+**Detection rule:** If more than 15 claims in the same zone share matching or near-identical device fingerprints → coordinated fraud flag. Entire cluster held for investigation.
+
+#### Ring Signal 4 — Social graph analysis
+Fraud rings organise socially — Telegram groups, WhatsApp chats. NichePay cannot access those directly, but it can detect the social graph through referral patterns. If 200 workers who all registered on the same day, in the same 2-hour window, via the same referral link, all claim simultaneously → the registration pattern itself is a signal.
+
+**Detection rule:** Workers who registered in the same time cluster (within 1 hour of each other) and claim in the same disruption event → cohort flag added to all their claims.
+
+#### Ring Signal 5 — IP address clustering at registration
+GPS spoofing rings often register accounts in bulk from the same location or using the same VPN exit node. NichePay hashes and stores the IP address at registration. A large number of accounts registered from the same IP subnet is a strong signal of coordinated account creation.
+
+**Detection rule:** More than 10 accounts registered from the same /24 IP subnet → all accounts in that subnet are tagged as potentially coordinated. Claims from tagged accounts require manual approval.
+
+---
+
+### 3. The UX Balance — Flagging Bad Actors Without Punishing Honest Workers
+
+This is the most important constraint. A genuine worker experiencing a real network drop during heavy rain may trigger some of the same signals as a spoofer — their accelerometer may show less movement if they are sheltering, their network may be weak causing cell tower data to be unreliable. NichePay's response system is designed to never punish an honest worker.
+
+#### Principle 1 — No single signal blocks a payout
+
+No individual signal by itself results in a blocked payout. Every signal contributes to a composite anomaly score. Only when the total score crosses a threshold does a claim get held — and even then, it is held for review, not rejected.
+
+```
+Composite Anomaly Score = weighted sum of all signals
+
+Score < 0.3  → Auto-approve, payout immediately
+Score 0.3–0.5 → Hold 24 hours, send worker a verification prompt
+Score 0.5–0.7 → Hold 48 hours, Zone Manager manual review
+Score > 0.7   → Block, worker notified with explanation, appeal available
+```
+
+#### Principle 2 — The verification prompt (not a punishment)
+
+When a claim is held at the 0.3–0.5 range, the worker receives a simple SMS and in-app prompt:
+
+*"We are verifying your claim for March 18. Please confirm you were in [zone name] during [time window] by replying YES. This takes 10 seconds."*
+
+A genuine stranded worker confirms in seconds. A spoofer who is actually at home in a different zone will either not respond or confirm a zone they are not in — which the system cross-checks against the cell tower data.
+
+This prompt resolves the vast majority of genuine-but-flagged cases within minutes, and the payout is released immediately upon confirmation.
+
+#### Principle 3 — Network drop is not a spoofing signal
+
+Genuine workers in heavy rain often have poor network connectivity. If a worker's GPS signal drops and reconnects, or if cell tower data is temporarily unavailable, NichePay does not treat this as a spoofing signal. The system uses the last confirmed GPS position and cell tower region before the network drop and holds that as the worker's location for the duration of the outage.
+
+**Rule:** A network drop of under 90 minutes during a verified disruption window does not increase the anomaly score. It is an expected side effect of the disruption itself.
+
+#### Principle 4 — Appeal with zero friction
+
+If a worker's claim is blocked and they believe it is wrong, the appeal process requires only two steps: confirm their Zomato partner ID and upload one piece of supporting evidence (a photo, a screenshot of the Zomato partner app showing them online, or a screenshot of the weather alert from that day). The Zone Manager reviews within 4 hours and releases the payout if legitimate.
+
+Workers are never asked to prove a negative. The burden of proof is on the fraud model, not the worker.
+
+#### Principle 5 — Ring detection does not punish non-ring members
+
+If a coordinated ring is detected in a zone, only the workers whose individual anomaly scores are elevated AND who match the ring clustering signals are held. Innocent workers in the same zone who show normal behaviour patterns receive their payouts immediately and are unaffected by the ring investigation.
+
+---
+
+### Summary — Defense Architecture
+
+| Threat | Detection Method | Response |
+|---|---|---|
+| Individual GPS spoofing | Accelerometer + cell tower mismatch | Anomaly score elevated, verification prompt |
+| Perfectly stationary spoofer | Accelerometer zero motion + GPS movement | Hard flag, claim held |
+| Spoofer in wrong zone | Cell tower vs GPS zone mismatch | Immediate block |
+| Coordinated ring (timing) | Simultaneous claim spike > 50 in 15 min | Zone pool freeze, human review |
+| Coordinated ring (volume) | Claims 2.5x above historical baseline | Ring alert, cohort investigation |
+| Bulk fake registrations | IP subnet clustering at signup | Accounts tagged, claims require manual approval |
+| Device fingerprint sharing | Identical device profiles across claims | Cluster flag, investigation |
+| Genuine network drop | Signal gap under 90 min during disruption | No penalty, last known location held |
+| Genuine but flagged | Composite score 0.3–0.5 | Verification SMS, payout on confirmation |
+| Wrongly blocked honest worker | Zero-friction appeal | Zone Manager review within 4 hours |
+
+---
+
 ## System Architecture
-![WhatsApp Image 2026-03-18 at 11 37 48 AM](https://github.com/user-attachments/assets/2fc7c3d8-61cf-469b-bc7c-662e2fa9d4b1)
+
+![WhatsApp Image 2026-03-18 at 7 16 50 PM](https://github.com/user-attachments/assets/54688519-d2d9-475b-86c7-322792d4417e)
+
+
+NichePay is built around two separate flows that share infrastructure but operate independently.
 
 ---
 
@@ -712,8 +847,8 @@ If eligible → publish to RabbitMQ pub/sub fanout [claim.eligible]
 - [x] Edge case identification and solutions
 - [x] System architecture design
 - [x] Tech stack finalization
-- [ ] GitHub repository setup with this README
-- [ ] 2-minute strategy video
+- [x] GitHub repository setup with this README
+- [x] 2-minute strategy video
 
 ### Phase 2 (March 21–April 4) — Automation & Protection
 - Worker registration with Zomato ID linking
