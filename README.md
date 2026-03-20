@@ -1,7 +1,7 @@
 # 🛵 NichePay — AI-Powered Parametric Income Insurance for Zomato Delivery Partners
 
 > **Guidewire DEVTrails 2026 | Phase 1 Submission**
-> Team: [Your Team Name] | Platform: Web (PWA)
+> Team: MATRIX | Platform: Web (PWA)
 
 ---
 
