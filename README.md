@@ -194,27 +194,127 @@ The ML Service picks up each location event and builds a full-day disruption pic
    - Nothing is missed, nothing is double-counted.
 
 #### Step 5 — Daily Cron Job (6 AM Next Day)
-Every morning at **6 AM**, a scheduled cron job processes **yesterday's full calendar day (00:00–23:59)** for all active policy holders.
-
-Why 6 AM and not midnight? Because some workers work until 1–2 AM. By running at 6 AM, we guarantee the previous day is fully over for every worker — including late-night shifts. The worker wakes up and the payout is already in their UPI.
-
+ 
+**What is a cron job?**
+A cron job is a scheduled task that runs automatically at a specific time every day — like an alarm clock for your server. You define the time once and it fires every single day without any manual trigger. In NichePay, we use **Bull** (a Redis-backed job queue) to schedule this, because it is already using Redis and it handles failures gracefully — if the server crashes and restarts, Bull remembers the job was not processed and retries it automatically.
+ 
+```js
+// How it is set up in code
+const payoutQueue = new Bull('daily-payout', { redis: process.env.REDIS_URL })
+ 
+payoutQueue.add({}, {
+  repeat: { cron: '0 6 * * *', tz: 'Asia/Kolkata' }
+})
+ 
+payoutQueue.process(async () => {
+  await processYesterdayPayouts()  // the main logic runs here
+})
 ```
-Cron fires at 6 AM on March 19
-       ↓
-Fetches March 18's complete disruption array from Redis/DB
-       ↓
-For each active worker — runs Claims Controller checks:
-  1. Was worker logged into Zomato on March 18? (attendance)
-  2. For each disruption window — did worker accept zero orders?
-  3. Cross-match: only windows where login=true AND orders=0 COUNT
-  4. Total disrupted hours calculated
-  5. Isolation Forest fraud check on full day's pattern
-       ↓
-If eligible → publish to RabbitMQ pub/sub fanout [claim.eligible]
-       ↓
-  ├── Queue 1 → Payment Service    (payout calc + UPI/Razorpay credit)
-  ├── Queue 2 → Notification Service (SMS: "₹175 credited for March 18")
-  └── Queue 3 → Dashboard Service   (admin analytics updated)
+ 
+The cron expression `'0 6 * * *'` means: fire at minute 0, hour 6, every day, every month, every weekday. The timezone is set to `Asia/Kolkata` (IST) so it always fires at 6 AM India time regardless of which country the server is hosted in.
+ 
+---
+ 
+**Why 6 AM — and not midnight?**
+ 
+The most obvious time to process "today's data" would be midnight (00:00). But this causes a serious problem for NichePay.
+ 
+Consider Ravi — he works an evening shift and is still online on Zomato at 11:30 PM. If we run the cron at midnight, his last 90 minutes of activity have not been fully recorded yet when the calculation starts. We would miss his late-night hours, and his payout would be wrong.
+ 
+By running at **6 AM**, we give a full 6-hour buffer after midnight. Every worker — even those who work until 1 or 2 AM — has long since logged off. The entire previous day is complete. Nothing is missed.
+ 
+```
+Example — why midnight fails:
+ 
+Ravi works until 1:00 AM on March 19 (this counts as March 18 data)
+ 
+Midnight cron fires at 00:00 on March 19:
+  Ravi's activity from 23:00–01:00 not yet fully stored
+  Calculation runs on incomplete data ❌
+ 
+6 AM cron fires at 06:00 on March 19:
+  Ravi logged off at 1:00 AM — 5 hours ago
+  All data for March 18 is complete and stored ✅
+  Calculation is accurate ✅
+```
+ 
+By the time the 6 AM cron completes and payouts are processed, it is around 6:05–6:10 AM. Most delivery workers wake up between 7–9 AM. **The money is in their UPI before they even pick up their phone.** That is the experience we are building.
+ 
+---
+ 
+**What the cron actually does — step by step:**
+ 
+```
+6:00 AM on March 19 — cron fires for all active workers
+ 
+Step 1: Fetch yesterday's date
+  yesterday = "2026-03-18"
+ 
+Step 2: Get March 18's disruption array from MongoDB
+  [
+    { time: "07:00–09:00", type: "rain",  level: "heavy"  },
+    { time: "14:00–16:00", type: "rain",  level: "medium" },
+    { time: "19:00–24:00", type: "AQI",   level: "severe" }
+  ]
+ 
+Step 3: For each active policy holder — run eligibility checks
+ 
+  Check A — Zomato login confirmation
+    → Did the worker log into Zomato on March 18?
+    → If NO → skip this worker entirely (voluntary day off)
+    → If YES → continue to next check
+ 
+  Check B — Order acceptance per disruption window
+    → For each disruption window in the array:
+       Did the worker accept zero orders during that time?
+       If rain was 7–9 AM but worker accepted 3 orders → those 2 hours do NOT count
+       If rain was 7–9 AM and worker accepted zero orders → 2 hours COUNT
+ 
+  Check C — Cross-match result
+    → Only hours where BOTH are true count:
+       login = true  AND  orders accepted = 0
+ 
+Step 4: Sum up all disrupted hours that passed both checks
+ 
+Step 5: Isolation Forest fraud check
+    → Is the claim pattern normal compared to other workers?
+    → Anomaly score < 0.3 → auto approve
+    → Anomaly score 0.3–0.6 → hold for manual review
+    → Anomaly score > 0.6 → block and flag
+ 
+Step 6: If approved → publish event to RabbitMQ pub/sub fanout
+ 
+  Three consumers pick it up simultaneously:
+  ├── Queue 1 → Payment Service    → calculates amount, credits UPI
+  ├── Queue 2 → Notification Service → sends SMS: "₹175 credited for Mar 18"
+  └── Queue 3 → Dashboard Service  → updates admin loss ratio + analytics
+```
+ 
+**Full worked example — Ravi on March 18:**
+ 
+```
+Ravi logs into Zomato at 6:00 AM ✅
+Zomato login = confirmed for March 18
+ 
+Disruption array for March 18:
+  07:00–09:00 → Heavy rain
+  14:00–16:00 → Medium rain
+ 
+Order check per window:
+  07:00–09:00 → Ravi accepted 0 orders → 2 hours COUNT ✅
+  14:00–16:00 → Ravi accepted 2 orders (light rain, continued working) → 0 hours count ❌
+ 
+Total disrupted hours = 2
+Login hours that day  = 16  (6 AM to 10 PM)
+Daily wage            = ₹700
+ 
+Payout = (700 ÷ 16) × 2 = ₹87.50
+ 
+Fraud score = 0.14 → auto approved
+ 
+Payment of ₹87.50 credited to Ravi's UPI at 6:05 AM on March 19
+SMS sent: "NichePay: ₹87.50 credited for 2hrs heavy rain on Mar 18"
+Ravi wakes up at 8 AM and sees the credit in his UPI ✅
 ```
 
 #### Step 6 — Payout Calculation
