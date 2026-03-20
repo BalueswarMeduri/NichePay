@@ -3,42 +3,37 @@ import type { IPricing } from "../types";
 export const pricingData: IPricing[] = [
     {
         name: "Basic",
-        price: 29,
-        period: "month",
+        price: 20,
+        period: "week",
         features: [
-            "Access to all basic courses",
-            "Community support",
-            "10 practice projects",
-            "Course completion certificate",
-            "Basic code review"
+            "Max Payout: ₹250/week",
+            "Coverage: Environmental only",
+            "Zero-touch claim processing"
         ],
         mostPopular: false
     },
     {
-        name: "Pro",
-        price: 79,
-        period: "month",
+        name: "Standard",
+        price: 35,
+        period: "week",
         features: [
-            "Access to all Pro courses",
-            "Priority community support",
-            "30 practice projects",
-            "Course completion certificate",
-            "Advance code review",
-            "1-on-1 mentoring sessions",
-            "Job assistance"
+            "Max Payout: ₹350/week",
+            "Coverage: Environmental + Social",
+            "Zero-touch claim processing",
+            "Smart disruption alerts"
         ],
         mostPopular: true
     },
     {
-        name: "Enterprise",
-        price: 199,
-        period: "month",
+        name: "Pro",
+        price: 49,
+        period: "week",
         features: [
-            "Access to all courses",
-            "Dedicated support",
-            "Unlimited projects",
-            "Course completion certificate",
-            "Premium code review"
+            "Max Payout: ₹500/week",
+            "Coverage: All triggers",
+            "Zero-touch claim processing",
+            "Smart disruption alerts",
+            "Priority instant payout"
         ],
         mostPopular: false
     }
