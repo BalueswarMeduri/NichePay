@@ -1,0 +1,81 @@
+const Partner = require('../models/Partner');
+const DailyLog = require('../models/DailyLog');
+
+exports.registerPartner = async (req, res) => {
+  try {
+    const { name, phone, email, address, password, upi } = req.body;
+    
+    // Check if partner already exists
+    const existingPartner = await Partner.findOne({ $or: [{ phone }, { email }] });
+    if (existingPartner) {
+      return res.status(400).json({ message: "Phone or Email already registered" });
+    }
+
+    // Generate unique 5-digit ID
+    let partnerId;
+    let isUnique = false;
+    while (!isUnique) {
+      partnerId = Math.floor(10000 + Math.random() * 90000).toString();
+      const checkId = await Partner.findOne({ partnerId });
+      if (!checkId) isUnique = true;
+    }
+
+    const newPartner = new Partner({ partnerId, name, phone, email, address, password, upi });
+    await newPartner.save();
+    res.status(201).json({ message: "Partner registered successfully", partner: newPartner });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+exports.loginPartner = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+    const partner = await Partner.findOne({ phone, password });
+    if (!partner) return res.status(401).json({ message: "Invalid phone or password" });
+    res.status(200).json({ message: "Login successful", partner });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.loginWithPartnerId = async (req, res) => {
+  try {
+    const { partnerId, password } = req.body;
+    
+    // Optional password validation since it's a dummy app, 
+    // but looking for partnerId is the main goal here.
+    const query = { partnerId };
+    if (password) query.password = password;
+
+    const partner = await Partner.findOne(query);
+    if (!partner) return res.status(401).json({ message: "Invalid Partner ID" });
+    
+    res.status(200).json({ message: "Login successful", partner });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.saveDailyLog = async (req, res) => {
+  try {
+    const { partnerId, date, totalOrders, totalEarnings, hourlyActivity } = req.body;
+    
+    // Validate partner ID
+    const partner = await Partner.findById(partnerId);
+    if (!partner) return res.status(404).json({ message: "Partner not found" });
+
+    const newLog = new DailyLog({ 
+      partner: partnerId, 
+      date, 
+      totalOrders, 
+      totalEarnings, 
+      hourlyActivity 
+    });
+
+    await newLog.save();
+    res.status(200).json({ message: "Daily activity saved successfully", log: newLog });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
