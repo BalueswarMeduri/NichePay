@@ -1,9 +1,49 @@
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
     const navigate = useNavigate();
+    const [zomatoId, setZomatoId] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        // If the user already has a partnerId stored, skip the login page entirely
+        if (localStorage.getItem("partnerId")) {
+            navigate("/select-plan");
+        }
+    }, [navigate]);
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setError("");
+
+        try {
+            const response = await fetch("http://localhost:5001/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ partnerId: zomatoId }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // optionally save user info
+                localStorage.setItem("partnerId", data.partner?.partnerId || zomatoId);
+                navigate("/select-plan");
+            } else {
+                setError(data.message || "Failed to login");
+            }
+        } catch (err) {
+            setError("Something went wrong. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
             {/* Background glowing effects */}
@@ -43,7 +83,12 @@ export default function LoginPage() {
                 className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10"
             >
                 <div className="bg-white/[0.03] border border-white/10 py-8 px-4 shadow-2xl sm:rounded-2xl sm:px-10 backdrop-blur-xl">
-                    <form className="space-y-6" action="#" method="POST" onSubmit={(e) => { e.preventDefault(); navigate('/select-plan'); }}>
+                    <form className="space-y-6" onSubmit={handleLogin}>
+                        {error && (
+                            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/50 text-red-400 text-sm text-center">
+                                {error}
+                            </div>
+                        )}
                         <div>
                             <label htmlFor="zomatoId" className="block text-sm font-medium text-slate-300">
                                 Zomato Partner ID
@@ -54,6 +99,8 @@ export default function LoginPage() {
                                     id="zomatoId"
                                     name="zomatoId"
                                     type="text"
+                                    value={zomatoId}
+                                    onChange={(e) => setZomatoId(e.target.value)}
                                     autoComplete="off"
                                     required
                                     placeholder="847291"
@@ -62,31 +109,14 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        <div>
-                            <label htmlFor="phone" className="block text-sm font-medium text-slate-300">
-                                Registered Mobile Number
-                            </label>
-                            <div className="mt-2 relative">
-                                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 font-medium">+91</span>
-                                <input
-                                    id="phone"
-                                    name="phone"
-                                    type="tel"
-                                    autoComplete="tel"
-                                    required
-                                    placeholder="98765 43210"
-                                    className="block w-full appearance-none rounded-xl border border-white/10 bg-white/5 pl-12 px-3 py-3 text-white placeholder-slate-600 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 sm:text-sm transition-colors"
-                                />
-                            </div>
-                        </div>
-
                         <div className="pt-2">
                             <button
                                 type="submit"
-                                className="group flex w-full justify-center items-center gap-2 rounded-xl border border-transparent bg-primary-600 py-3.5 px-4 text-sm font-medium text-white shadow-sm hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-black transition-all active:scale-[0.98]"
+                                disabled={isLoading}
+                                className={`group flex w-full justify-center items-center gap-2 rounded-xl border border-transparent bg-primary-600 py-3.5 px-4 text-sm font-medium text-white shadow-sm hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-black transition-all ${isLoading ? 'opacity-70 cursor-not-allowed' : 'active:scale-[0.98]'}`}
                             >
-                                Verify & Connect
-                                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                                {isLoading ? "Verifying..." : "Verify & Connect"}
+                                {!isLoading && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />}
                             </button>
                         </div>
                     </form>

@@ -19,11 +19,18 @@ import {
     FiMenu,
     FiX
 } from "react-icons/fi";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Logo } from "../components/Logo";
 
 export default function DashboardPage() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const navigate = useNavigate();
+
+    const handleLogout = (e: React.MouseEvent) => {
+        e.preventDefault();
+        localStorage.removeItem("partnerId");
+        navigate("/");
+    };
 
     const navLinks = [
         { to: "/dashboard", icon: <FiGrid className="size-4" />, label: "Dashboard", active: true },
@@ -87,10 +94,10 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="p-3 mb-2 text-sm">
-                    <a href="/" className="flex items-center gap-3 text-slate-400 hover:text-white hover:bg-white/5 px-3.5 py-2.5 rounded-xl font-medium transition-colors">
+                    <button onClick={handleLogout} className="w-full flex items-center gap-3 text-slate-400 hover:text-white hover:bg-white/5 px-3.5 py-2.5 rounded-xl font-medium transition-colors">
                         <FiLogOut className="size-4" />
                         Log Out
-                    </a>
+                    </button>
                 </div>
             </aside>
 

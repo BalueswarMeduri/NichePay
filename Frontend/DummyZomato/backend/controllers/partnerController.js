@@ -39,6 +39,17 @@ exports.loginPartner = async (req, res) => {
   }
 };
 
+exports.getPartnerProfile = async (req, res) => {
+  try {
+    const { partnerId } = req.params;
+    const partner = await Partner.findOne({ partnerId }).select("-password");
+    if (!partner) return res.status(404).json({ message: "Partner not found" });
+    res.status(200).json({ partner });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.loginWithPartnerId = async (req, res) => {
   try {
     const { partnerId, password } = req.body;

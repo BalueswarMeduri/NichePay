@@ -11,6 +11,9 @@ router.post('/login', partnerController.loginPartner);
 // Login route (by partnerId)
 router.post('/login-partner-id', partnerController.loginWithPartnerId);
 
+// Get profile route (by partnerId)
+router.get('/profile/:partnerId', partnerController.getPartnerProfile);
+
 // Save hourly activity route
 router.post('/save-log', partnerController.saveDailyLog);
 
