@@ -1,11 +1,13 @@
 const { publishEvent } = require('../utils/rabbitmq');
 
-const publishPaymentSuccess = async (userId, plan, amount) => {
+const publishPaymentSuccess = async (userId, plan, amount, email, orderId) => {
   const event = {
     type: 'PAYMENT_SUCCESS',
     userId,
     plan,
-    amount
+    amount,
+    email,
+    transactionId: orderId || `txn_${Date.now()}`
   };
   await publishEvent('payment.success', event);
 };
