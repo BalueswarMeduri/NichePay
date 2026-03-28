@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Link, useNavigate } from "react-router-dom";
 import { pricingData } from "../data/pricing";
@@ -10,9 +10,18 @@ export default function PlanSelectionPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [termsAccepted, setTermsAccepted] = useState(false);
 
-    const handleConfirm = () => {
-        if (termsAccepted) {
+    // Prevent showing plan selection if the user already has an active plan
+    useEffect(() => {
+        const hasAActivePlan = localStorage.getItem('hasActivePlan');
+        if (hasAActivePlan === 'true') {
             navigate('/dashboard');
+        }
+    }, [navigate]);
+
+    const handleConfirm = () => {
+        if (termsAccepted && selectedPlan !== null) {
+            const planDetails = pricingData[selectedPlan];
+            navigate('/payment', { state: { plan: planDetails } });
         }
     };
 
