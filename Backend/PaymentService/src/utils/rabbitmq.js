@@ -54,17 +54,28 @@ const getChannel = () => {
 const publishEvent = async (routingKey, message) => {
   try {
     const ch = getChannel();
-    const exchange = 'events';
+    // Default exchange used by Notification Service
+    const exchange = 'notification_exchange';
     
+    // Assert the exchange just in case Notification Service hasn't yet
+    await ch.assertExchange(exchange, 'topic', { durable: true });
+
+    // Map internal keys to Notification Service keys if necessary
+    let finalRoutingKey = routingKey;
+    if (routingKey === 'payment.success') finalRoutingKey = 'PAYMENT_SUCCESS';
+    if (routingKey === 'payment.failed') finalRoutingKey = 'PAYMENT_FAILED';
+    if (routingKey === 'payout.success') finalRoutingKey = 'PAYOUT_SUCCESS';
+    if (routingKey === 'payout.failed') finalRoutingKey = 'PAYOUT_FAILED';
+
     const msgString = JSON.stringify(message);
-    const published = ch.publish(exchange, routingKey, Buffer.from(msgString), {
+    const published = ch.publish(exchange, finalRoutingKey, Buffer.from(msgString), {
       persistent: true
     });
     
     if (published) {
-      console.log(`📤 Published event to ${routingKey}`, { eventId: message.eventId || message.type });
+      console.log(`📤 Published event to ${finalRoutingKey}`, { eventId: message.eventId || message.type });
     } else {
-      console.error(`Failed to publish event to ${routingKey}`);
+      console.error(`Failed to publish event to ${finalRoutingKey}`);
     }
   } catch (error) {
     console.error(`Error publishing event to ${routingKey}`, error);
