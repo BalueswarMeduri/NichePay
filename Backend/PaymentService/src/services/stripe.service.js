@@ -19,8 +19,12 @@ const createOrder = async (amount, receipt) => {
       return { id: `mock_pi_${Date.now()}`, amount: amount * 100, currency: 'inr', receipt };
     }
 
+    // Stripe requires transactions to be equivalent to at least US$0.50. 
+    // To allow sandbox testing of lower INR plans, we enforce a minimum value for the API specifically.
+    const safeAmount = amount < 50 ? 50 : amount;
+
     const paymentIntent = await stripeInstance.paymentIntents.create({
-      amount: amount * 100, // amount in the smallest currency unit
+      amount: safeAmount * 100, // amount in the smallest currency unit
       currency: "inr",
       description: receipt
     });

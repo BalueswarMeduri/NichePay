@@ -12,7 +12,11 @@ export default function LoginPage() {
     useEffect(() => {
         // If the user already has a partnerId stored, skip the login page entirely
         if (localStorage.getItem("partnerId")) {
-            navigate("/select-plan");
+            if (localStorage.getItem("hasActivePlan") === "true") {
+                navigate("/dashboard");
+            } else {
+                navigate("/select-plan");
+            }
         }
     }, [navigate]);
 
@@ -31,9 +35,19 @@ export default function LoginPage() {
             const data = await response.json();
 
             if (response.ok) {
-                // optionally save user info
-                localStorage.setItem("partnerId", data.partner?.partnerId || zomatoId);
-                navigate("/select-plan");
+                const partnerId = data.partner?.partnerId || zomatoId;
+                
+                // Save truthy info from backend
+                localStorage.setItem("partnerId", partnerId);
+                localStorage.setItem("nichePayUser", JSON.stringify(data.partner || {}));
+
+                if (data.hasPlan) {
+                    localStorage.setItem("hasActivePlan", "true");
+                    navigate("/dashboard");
+                } else {
+                    localStorage.removeItem("hasActivePlan");
+                    navigate("/select-plan");
+                }
             } else {
                 setError(data.message || "Failed to login");
             }

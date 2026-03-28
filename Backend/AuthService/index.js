@@ -22,8 +22,25 @@ app.post('/auth/login', async (req, res) => {
       partnerId: partnerId
     });
 
+    let hasPlan = false;
+    try {
+      // Query the PaymentService to check if this specific user has purchased a plan
+      const paymentRes = await axios.get(`http://localhost:5003/api/payments/status/${partnerId}`);
+      if (paymentRes.data && paymentRes.data.hasPlan) {
+        hasPlan = true;
+      }
+    } catch (paymentErr) {
+      console.error("AuthService failed to reach PaymentService:", paymentErr.message);
+    }
+
+    // Attach true payment state to the client payload
+    const finalResponse = {
+      ...zomatoResponse.data,
+      hasPlan
+    };
+
     // If successful, pass the response data back to the User Dashboard
-    res.status(200).json(zomatoResponse.data);
+    res.status(200).json(finalResponse);
   } catch (error) {
     console.error("AuthService Login Error:", error.response?.data || error.message);
     

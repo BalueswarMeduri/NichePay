@@ -20,10 +20,28 @@ async function startServer() {
 
     // 3. Start Express App
     const app = express();
+    const cors = require('cors');
+    const Payment = require('./models/payment.model');
+
+    app.use(cors());
     app.use(express.json());
 
     app.get('/health', (req, res) => {
       res.status(200).json({ status: 'OK', service: 'Payment Service' });
+    });
+
+    app.get('/api/payments/status/:userId', async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const record = await Payment.findOne({ userId, status: 'SUCCESS' });
+        if (record) {
+          res.status(200).json({ hasPlan: true, plan: record.plan });
+        } else {
+          res.status(200).json({ hasPlan: false });
+        }
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to check payment status' });
+      }
     });
 
     const port = process.env.PORT || 3000;

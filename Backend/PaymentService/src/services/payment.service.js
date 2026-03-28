@@ -5,7 +5,7 @@ const eventService = require('./event.service');
 
 const processSubscription = async (event) => {
   try {
-    const { eventId, userId, plan, amount } = event;
+    const { eventId, userId, plan, amount, email } = event;
 
     console.log(`Processing subscription purchase for user: ${userId}`, { eventId });
 
@@ -20,6 +20,7 @@ const processSubscription = async (event) => {
     const paymentRecord = new Payment({
       eventId,
       userId,
+      email,
       plan,
       amount,
       status: 'PENDING'
@@ -39,7 +40,7 @@ const processSubscription = async (event) => {
     await markIdempotencySuccess(`payment:${eventId}`);
 
     // 6. Publish Success Event
-    await eventService.publishPaymentSuccess(userId, plan, amount);
+    await eventService.publishPaymentSuccess(userId, plan, amount, email, paymentRecord.orderId);
     
     console.log(`Successfully processed subscription purchase for user: ${userId}`, { eventId });
 
