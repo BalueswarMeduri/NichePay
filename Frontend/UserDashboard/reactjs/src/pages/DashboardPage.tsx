@@ -1,30 +1,72 @@
 import React, { useState, cloneElement } from "react";
 import { 
-    FiGrid, 
-    FiFileText, 
-    FiClock, 
-    FiBriefcase, 
-    FiLogOut,
-    FiUser,
-    FiBell,
-    FiShield,
-    FiUmbrella,
-    FiCreditCard,
-    FiMoreVertical,
-    FiCheckCircle,
-    FiCloudRain,
-    FiSun,
-    FiMinusCircle,
-    FiArrowUpRight,
-    FiMenu,
-    FiX
+    FiGrid, FiFileText, FiClock, FiBriefcase, FiLogOut, FiUser, FiBell,
+    FiShield, FiUmbrella, FiCreditCard, FiMoreVertical, FiCheckCircle,
+    FiCloudRain, FiSun, FiMinusCircle, FiArrowUpRight, FiMenu, FiX, FiMapPin
 } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import { Logo } from "../components/Logo";
 
 export default function DashboardPage() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [showLocationModal, setShowLocationModal] = useState(true);
+    const [manualCity, setManualCity] = useState("Bangalore");
+    const [manualPincode, setManualPincode] = useState("560001");
+    const [manualDate, setManualDate] = useState("2026-03-18");
+    const [isFetchingLocation, setIsFetchingLocation] = useState(false);
     const navigate = useNavigate();
+
+    const pushLocation = (lat: number, lng: number, dateStr?: string, pc?: string) => {
+        const userId = localStorage.getItem("partnerId") || "unknown_driver";
+        const email = localStorage.getItem("nichePayUser") ? JSON.parse(localStorage.getItem("nichePayUser")!).email : "driver@test.com";
+        const payload = { userId, lat, lng, date: dateStr, pincode: pc, data: { email } };
+
+        fetch("http://localhost:5004/api/address/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        }).catch(err => console.error("Failed to push location", err));
+    };
+
+    const handleCurrentLocation = () => {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    pushLocation(pos.coords.latitude, pos.coords.longitude);
+                    setShowLocationModal(false);
+                },
+                (err) => console.warn(err),
+                { enableHighAccuracy: true }
+            );
+        }
+    };
+
+    const handleManualLocation = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!manualCity.trim()) return;
+        
+        setIsFetchingLocation(true);
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualCity)}&format=json&limit=1&addressdetails=1`);
+            const data = await res.json();
+            
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lng = parseFloat(data[0].lon);
+                // Prioritize manual input, fallback to geocoded postcode if any
+                const resolvedPincode = manualPincode || data[0].address?.postcode || "000000";
+                pushLocation(lat, lng, manualDate, resolvedPincode);
+                setShowLocationModal(false);
+            } else {
+                alert("City not found globally on OpenStreetMap! Please enter a valid city name.");
+                setIsFetchingLocation(false);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Network error mapping the specified city.");
+            setIsFetchingLocation(false);
+        }
+    };
 
     const handleLogout = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -42,6 +84,69 @@ export default function DashboardPage() {
 
     return (
         <div className="flex h-[100dvh] bg-slate-50 overflow-hidden font-poppins">
+            {showLocationModal && (
+                <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center backdrop-blur-sm p-4">
+                    <div className="bg-[#1e1e24] p-6 rounded-3xl shadow-2xl max-w-sm w-full border border-white/10 text-white relative">
+                        <button onClick={() => setShowLocationModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+                            <FiX size={20} />
+                        </button>
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <FiMapPin className="text-primary-500" /> Set Work Location
+                        </h2>
+                        
+                        <button 
+                            onClick={handleCurrentLocation}
+                            className="w-full py-3 bg-primary-500 hover:bg-primary-600 rounded-xl font-semibold transition-colors mb-6 flex justify-center items-center gap-2 shadow-lg shadow-primary-500/20"
+                        >
+                            📍 Use Live GPS
+                        </button>
+
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="h-px bg-white/10 flex-1"></div>
+                            <span className="text-xs text-slate-400 font-medium uppercase tracking-widest">Or Manual</span>
+                            <div className="h-px bg-white/10 flex-1"></div>
+                        </div>
+
+                        <form onSubmit={handleManualLocation} className="space-y-4">
+                            <div>
+                                <label className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1 block">Simulate ANY City</label>
+                                <input 
+                                    type="text" 
+                                    value={manualCity} 
+                                    onChange={(e) => setManualCity(e.target.value)}
+                                    placeholder="e.g. Vijayawada, Tokyo..."
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500 text-white"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1 block">Pincode (Optional)</label>
+                                <input 
+                                    type="text" 
+                                    value={manualPincode} 
+                                    onChange={(e) => setManualPincode(e.target.value)}
+                                    placeholder="e.g. 522503"
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500 text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1 block">Simulate Date</label>
+                                <input 
+                                    type="date" 
+                                    value={manualDate}
+                                    onChange={(e) => setManualDate(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500"
+                                    required
+                                />
+                            </div>
+                            <button type="submit" disabled={isFetchingLocation} className={`w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl font-semibold transition-colors mt-2 text-sm border border-white/5 object-cover ${isFetchingLocation ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                {isFetchingLocation ? "Locating City globally..." : "Fetch Smart Report"}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div 

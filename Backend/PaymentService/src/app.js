@@ -6,6 +6,7 @@ const { connectRabbitMQ } = require('./utils/rabbitmq');
 
 const { startPaymentConsumer } = require('./consumers/payment.consumer');
 const { startClaimConsumer } = require('./consumers/claim.consumer');
+const { startDisruptionConsumer } = require('./consumers/disruption.consumer');
 
 async function startServer() {
   try {
@@ -17,6 +18,7 @@ async function startServer() {
     // 2. Start Message Consumers
     await startPaymentConsumer();
     await startClaimConsumer();
+    await startDisruptionConsumer();
 
     // 3. Start Express App
     const app = express();

@@ -14,7 +14,7 @@ const amqp = require('amqplib');
 let channel;
 const connectRabbitMQ = async () => {
   try {
-    const amqpServer = "amqps://niznqkqk:ntvjVsRPCbeKxhWLpfegfQwqT0xn3HtN@puffin.rmq2.cloudamqp.com/niznqkqk";
+    const amqpServer = "amqps://anbqwtzw:FVgZHA5TsW1mee0cTJbCSva3mX61wPbt@puffin.rmq2.cloudamqp.com/anbqwtzw?heartbeat=60";
     const connection = await amqp.connect(amqpServer);
     channel = await connection.createChannel();
     

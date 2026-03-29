@@ -15,8 +15,8 @@ def callback(ch, method, properties, body):
         lng = data.get("lng")
         date = data.get("date")
         
-        if not all([pincode, lat, lng, date]):
-            logger.error("Missing required fields in location update")
+        if pincode is None or lat is None or lng is None or date is None:
+            logger.error(f"Missing required fields. Received: {data}")
             return
             
         redis_key = f"disruptions:{date}:{lat}_{lng}"
@@ -34,14 +34,34 @@ def callback(ch, method, properties, body):
         )
         
         redis_client.set(redis_key, disruptions_data, ttl=1800)
-        logger.info(f"Generated and cached disruptions for {redis_key}")
+        logger.info(f"Generated and cached disruptions for {redis_key}:\n{json.dumps(disruptions_data, indent=2)}")
+        
+        try:
+            # Publish to downstream Hackathon queue for MainService to process compensation logic
+            ch.queue_declare(queue='ml.disruptions.processed', durable=True)
+            downstream_payload = {
+                "userId": data.get("userId"),
+                "email": data.get("extraData", {}).get("email"),
+                "results": disruptions_data
+            }
+            ch.basic_publish(
+                exchange='',
+                routing_key='ml.disruptions.processed',
+                body=json.dumps(downstream_payload),
+                properties=pika.BasicProperties(delivery_mode=2) # Persistent
+            )
+            logger.info("Successfully pushed processed disruptions to 'ml.disruptions.processed'")
+        except Exception as pub_err:
+            logger.error(f"Failed to publish to downstream queue: {pub_err}")
         
     except Exception as e:
         logger.error(f"Error processing message: {e}")
 
 def start_consuming():
     try:
-        connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+        url = "amqps://anbqwtzw:FVgZHA5TsW1mee0cTJbCSva3mX61wPbt@puffin.rmq2.cloudamqp.com/anbqwtzw?heartbeat=60"
+        parameters = pika.URLParameters(url)
+        connection = pika.BlockingConnection(parameters)
         channel = connection.channel()
         channel.queue_declare(queue='location.update', durable=True)
         channel.basic_consume(queue='location.update', on_message_callback=callback, auto_ack=True)
