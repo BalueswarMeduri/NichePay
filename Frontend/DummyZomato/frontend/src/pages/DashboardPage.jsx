@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 const DashboardPage = () => {
     const [hourlyData, setHourlyData] = useState([]);
     const [partner, setPartner] = useState(null);
+    const [selectedDate, setSelectedDate] = useState('2026-03-18');
     const [stats, setStats] = useState({ totalOrders: 0, totalEarnings: 0, currentStatus: 'Online' });
     const navigate = useNavigate();
 
@@ -80,7 +81,7 @@ const DashboardPage = () => {
     const handleSaveData = async () => {
         const dataToSave = {
             partnerId: partner?._id,
-            date: new Date().toLocaleDateString('en-GB'), // DD/MM/YYYY
+            date: selectedDate, // YYYY-MM-DD to match ML Service
             totalOrders: stats.totalOrders,
             totalEarnings: stats.totalEarnings,
             hourlyActivity: hourlyData
@@ -178,7 +179,16 @@ const DashboardPage = () => {
                 {/* Hourly Log Section */}
                 <div className="bg-white rounded-[32px] shadow-2xl shadow-gray-200 border border-gray-100 overflow-hidden mb-12">
                     <div className="px-8 py-6 border-b border-gray-100 flex flex-col md:flex-row md:justify-between md:items-center gap-4 bg-gray-50/50">
-                        <h3 className="text-xl font-black text-gray-900 tracking-tight">Activity Customizer (Today)</h3>
+                        <div>
+                            <h3 className="text-xl font-black text-gray-900 tracking-tight">Activity Customizer</h3>
+                            <label className="text-[10px] uppercase font-black tracking-widest text-gray-400">Simulation Date:</label>
+                            <input 
+                                type="date" 
+                                value={selectedDate}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                                className="ml-2 bg-white border border-gray-200 rounded-lg px-3 py-1 text-sm font-bold text-gray-700 outline-none focus:border-red-500"
+                            />
+                        </div>
                         <p className="text-[11px] font-bold text-red-400 bg-red-50 px-4 py-2 rounded-full border border-red-100">Click Status or Use +/- to Modify Data</p>
                     </div>
                     

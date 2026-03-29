@@ -7,10 +7,16 @@ logger = logging.getLogger(__name__)
 class RedisService:
     def __init__(self):
         try:
-            self.client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+            self.client = redis.Redis(
+                host='redis-13328.crce206.ap-south-1-1.ec2.cloud.redislabs.com', 
+                port=13328, 
+                password='DgspaWb4Pe7IKzaMq1M96YEMJ6tpsbSH',
+                db=0, 
+                decode_responses=True
+            )
             self.client.ping()
-        except redis.ConnectionError:
-            logger.warning("Redis not available. Running in fallback (in-memory) mode.")
+        except Exception as e:
+            logger.warning(f"Redis not available ({e}). Running in fallback (in-memory) mode.")
             self.client = None
             self._fallback_cache = {}
 
