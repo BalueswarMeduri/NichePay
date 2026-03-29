@@ -26,8 +26,7 @@ export default function PaymentPage() {
             
             if (partnerData) {
                 const parsed = JSON.parse(partnerData);
-                // Schema uses 'partnerId' not 'id', fallback to the standalone local storage token
-                partnerId = parsed.partnerId || partnerId;
+                // Strictly use the verified localStorage token, skipping faulty payload schemas
                 emailAddress = parsed.email || emailAddress;
             }
 

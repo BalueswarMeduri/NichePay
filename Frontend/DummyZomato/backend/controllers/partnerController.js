@@ -90,3 +90,42 @@ exports.saveDailyLog = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.getDailyLog = async (req, res) => {
+  try {
+    const { partnerId, date } = req.params;
+    
+    // We look up the partner first since DailyLog ties to ObjectId
+    const partner = await Partner.findOne({ partnerId });
+    let log = null;
+    
+    if (partner) {
+        log = await DailyLog.findOne({ partner: partner._id, date });
+    }
+    
+    if (!log) {
+      return res.status(200).json({ 
+        log: { 
+          partner: partnerId, 
+          date, 
+          totalOrders: 0, 
+          totalEarnings: 0, 
+          hourlyActivity: [
+            { timeSlot: "10:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "11:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "12:00", isOnline: false, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "14:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "15:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "16:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "17:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "18:00", isOnline: true, ordersAccepted: 0, earnings: 0 }
+          ] 
+        } 
+      });
+    }
+    
+    res.status(200).json({ log });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

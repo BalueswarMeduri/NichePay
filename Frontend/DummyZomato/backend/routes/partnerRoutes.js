@@ -17,4 +17,7 @@ router.get('/profile/:partnerId', partnerController.getPartnerProfile);
 // Save hourly activity route
 router.post('/save-log', partnerController.saveDailyLog);
 
+// Fetch hourly activity route
+router.get('/daily-logs/:partnerId/:date', partnerController.getDailyLog);
+
 module.exports = router;
