@@ -45,3 +45,17 @@ button {
         background-position: 0% 50%;
     }
 }
+
+/* Dark scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+/* bg-white/8 and bg-white/12 helpers */
+.hover\:bg-white\/8:hover { background-color: rgba(255,255,255,0.08); }
+.bg-white\/8 { background-color: rgba(255,255,255,0.08); }
+.hover\:bg-white\/12:hover { background-color: rgba(255,255,255,0.12); }
+.bg-white\/12 { background-color: rgba(255,255,255,0.12); }
+.bg-white\/5 { background-color: rgba(255,255,255,0.05); }
+.bg-white\/8 { background-color: rgba(255,255,255,0.08); }

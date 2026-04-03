@@ -36,21 +36,37 @@ connectRabbitMQ();
 app.get('/api/policy/profile/:partnerId', async (req, res) => {
   try {
     const { partnerId } = req.params;
-
-    // Fetch details from DummyZomato Service
     const zomatoResponse = await axios.get(`http://localhost:5000/api/partners/profile/${partnerId}`);
-
-    // If successful, pass the response data back to the User Dashboard
     res.status(200).json(zomatoResponse.data);
   } catch (error) {
     console.error("PolicyService Profile Error:", error.response?.data || error.message);
-    
-    // Pass along whatever error the DummyZomato API sent, or a generic 500
     if (error.response) {
       res.status(error.response.status).json(error.response.data);
     } else {
       res.status(500).json({ message: "Internal Policy Service Error" });
     }
+  }
+});
+
+// Route to get user's active insurance plan (from PaymentService)
+app.get('/api/policy/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const paymentRes = await axios.get(`http://localhost:5003/api/payments/status/${userId}`);
+    const { hasPlan, plan } = paymentRes.data;
+
+    if (!hasPlan) {
+      return res.status(404).json({ message: 'No active policy found' });
+    }
+
+    // Map the plan name to a daily wage value for the payout formula
+    const wageMap = { 'Basic': 400, 'Standard': 600, 'Pro Shield': 800, 'Premium': 1000 };
+    const dailyWage = wageMap[plan] || 600;
+
+    res.status(200).json({ planName: plan, dailyWage, status: 'Active' });
+  } catch (error) {
+    console.error("PolicyService User Policy Error:", error.response?.data || error.message);
+    res.status(500).json({ message: "Failed to fetch policy" });
   }
 });
 

@@ -1,0 +1,33 @@
+SERVICE: C:\Users\balum\web development\NichePay\Backend\AddressPolling\package.json
+Name: addresspolling
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Backend\ApiGateway\package.json
+Name: apigateway
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Backend\AuthService\package.json
+Name: authservice
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Backend\MainService\package.json
+Name: mainservice
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Backend\NotificationService\package.json
+Name: notificationservice
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Backend\PaymentService\package.json
+Name: payment-service
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Backend\PolicyService\package.json
+Name: policyservice
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Frontend\AdminDashboard\package.json
+Name: admindashboard
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Frontend\DummyZomato\backend\package.json
+Name: backend
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Frontend\DummyZomato\frontend\package.json
+Name: frontend
+--------------
+SERVICE: C:\Users\balum\web development\NichePay\Frontend\UserDashboard\reactjs\package.json
+Name: reactjs
+--------------

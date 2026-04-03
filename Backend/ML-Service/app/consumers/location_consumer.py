@@ -7,40 +7,106 @@ from ..services.disruption_service import build_disruption_array
 
 logger = logging.getLogger(__name__)
 
+
+def _print_disruption_summary(source: str, user_id: str, date: str, data: dict):
+    """Prints a clear, readable disruption summary to the terminal."""
+    disruptions = data.get("disruptions", [])
+    weather = data.get("disruptionsByType", {}).get("weather", [])
+    social = data.get("disruptionsByType", {}).get("social", [])
+    zone = data.get("zone", "Unknown")
+
+    # ── Header ──────────────────────────────────────────────
+    print("\n" + "═" * 60)
+    print(f"  🤖 ML SERVICE  [{source}]")
+    print("═" * 60)
+    print(f"  👤 User     : {user_id}")
+    print(f"  📅 Date     : {date}")
+    print(f"  📍 Zone     : {zone}")
+    print(f"  🌐 Coords   : {data.get('lat')}, {data.get('lng')}")
+    print("─" * 60)
+
+    if not disruptions:
+        print("  ✅ No disruptions detected for this location/date.")
+    else:
+        print(f"  ⚠️  {len(disruptions)} disruption(s) found:")
+        print()
+        for i, d in enumerate(disruptions, 1):
+            dtype  = d.get("type", "?").upper()
+            level  = d.get("level", "?").upper()
+            window = d.get("time", "?")
+            icon   = "🌧️" if dtype == "RAIN" else "🔥" if dtype == "HEAT" else "💨" if dtype == "POLLUTION" else "🚫"
+            print(f"  {i}. {icon}  [{dtype}] Level: {level:<8}  Window: {window}")
+
+        print()
+        if weather:
+            print(f"  🌦  Weather events : {len(weather)}")
+        if social:
+            print(f"  📰 Social events  : {len(social)}")
+
+    print("═" * 60 + "\n")
+
+
 def callback(ch, method, properties, body):
     try:
         data = json.loads(body)
         pincode = data.get("pincode")
-        lat = data.get("lat")
-        lng = data.get("lng")
-        date = data.get("date")
-        
+        lat     = data.get("lat")
+        lng     = data.get("lng")
+        date    = data.get("date")
+        user_id = data.get("userId", "unknown")
+
         if pincode is None or lat is None or lng is None or date is None:
             logger.error(f"Missing required fields. Received: {data}")
             return
-            
+
         redis_key = f"disruptions:{date}:{lat}_{lng}"
         cached = redis_client.get(redis_key)
-        
+
         if cached:
-            logger.info(f"Cache hit for {redis_key}, skipping calculation.")
+            # ── CACHE HIT: show cached result clearly ──────────────
+            print("\n" + "─" * 60)
+            print(f"  ⚡ REDIS CACHE HIT  →  key: {redis_key}")
+            print("─" * 60)
+            _print_disruption_summary("SERVED FROM REDIS CACHE", user_id, date, cached)
+
+            # Still publish downstream so MainService processes it
+            try:
+                ch.queue_declare(queue='ml.disruptions.processed', durable=True)
+                downstream_payload = {
+                    "userId": user_id,
+                    "email": data.get("extraData", {}).get("email"),
+                    "results": cached
+                }
+                ch.basic_publish(
+                    exchange='',
+                    routing_key='ml.disruptions.processed',
+                    body=json.dumps(downstream_payload),
+                    properties=pika.BasicProperties(delivery_mode=2)
+                )
+                logger.info("Cached result re-published to 'ml.disruptions.processed'")
+            except Exception as pub_err:
+                logger.error(f"Failed to publish cached result: {pub_err}")
             return
-            
+
+        # ── FRESH CALCULATION ──────────────────────────────────────
+        print("\n" + "─" * 60)
+        print(f"  🔄 FRESH ML CALCULATION  →  key: {redis_key}")
+        print("─" * 60)
+
         disruptions_data = build_disruption_array(
-            lat=lat, 
-            lng=lng, 
-            date=date, 
+            lat=lat,
+            lng=lng,
+            date=date,
             pincode=pincode
         )
-        
+
         redis_client.set(redis_key, disruptions_data, ttl=1800)
-        logger.info(f"Generated and cached disruptions for {redis_key}:\n{json.dumps(disruptions_data, indent=2)}")
-        
+        _print_disruption_summary("FRESHLY COMPUTED + CACHED", user_id, date, disruptions_data)
+
         try:
-            # Publish to downstream Hackathon queue for MainService to process compensation logic
             ch.queue_declare(queue='ml.disruptions.processed', durable=True)
             downstream_payload = {
-                "userId": data.get("userId"),
+                "userId": user_id,
                 "email": data.get("extraData", {}).get("email"),
                 "results": disruptions_data
             }
@@ -48,14 +114,15 @@ def callback(ch, method, properties, body):
                 exchange='',
                 routing_key='ml.disruptions.processed',
                 body=json.dumps(downstream_payload),
-                properties=pika.BasicProperties(delivery_mode=2) # Persistent
+                properties=pika.BasicProperties(delivery_mode=2)
             )
             logger.info("Successfully pushed processed disruptions to 'ml.disruptions.processed'")
         except Exception as pub_err:
             logger.error(f"Failed to publish to downstream queue: {pub_err}")
-        
+
     except Exception as e:
         logger.error(f"Error processing message: {e}")
+
 
 def start_consuming():
     try:
@@ -72,6 +139,8 @@ def start_consuming():
     except Exception as e:
         logger.error(f"Consumer error: {e}")
 
+
 def run_consumer_in_background():
     thread = threading.Thread(target=start_consuming, daemon=True)
     thread.start()
+

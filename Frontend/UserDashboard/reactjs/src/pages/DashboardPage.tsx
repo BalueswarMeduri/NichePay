@@ -1,454 +1,354 @@
-import React, { useState, cloneElement } from "react";
-import { 
-    FiGrid, FiFileText, FiClock, FiBriefcase, FiLogOut, FiUser, FiBell,
-    FiShield, FiUmbrella, FiCreditCard, FiMoreVertical, FiCheckCircle,
-    FiCloudRain, FiSun, FiMinusCircle, FiArrowUpRight, FiMenu, FiX, FiMapPin
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+    FiShield, FiCloudRain, FiCheckCircle, FiArrowUpRight,
+    FiMapPin, FiX, FiZap, FiAlertTriangle
 } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
-import { Logo } from "../components/Logo";
+import AppShell from "../components/AppShell";
+
+const PAYMENT_SERVICE = "http://localhost:5003";
+const POLICY_SERVICE = "http://localhost:5002";
+
+interface Payout {
+    _id: string;
+    amount: number;
+    disruptedHours: number;
+    date: string;
+    reason: string;
+    status: string;
+    createdAt: string;
+}
+
+interface PolicyData {
+    planName: string;
+    dailyWage: number;
+    status: string;
+}
+
+const spring = { type: "spring" as const, stiffness: 280, damping: 60 };
+
+function getGreeting() {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+}
 
 export default function DashboardPage() {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showLocationModal, setShowLocationModal] = useState(true);
     const [manualCity, setManualCity] = useState("Bangalore");
     const [manualPincode, setManualPincode] = useState("560001");
     const [manualDate, setManualDate] = useState("2026-03-18");
     const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+    const [payouts, setPayouts] = useState<Payout[]>([]);
+    const [totalPayout, setTotalPayout] = useState(0);
+    const [policy, setPolicy] = useState<PolicyData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const navigate = useNavigate();
 
-    const pushLocation = (lat: number, lng: number, dateStr?: string, pc?: string) => {
-        const userId = localStorage.getItem("partnerId") || "unknown_driver";
-        const email = localStorage.getItem("nichePayUser") ? JSON.parse(localStorage.getItem("nichePayUser")!).email : "driver@test.com";
-        const payload = { userId, lat, lng, date: dateStr, pincode: pc, data: { email } };
+    const userId = localStorage.getItem("partnerId") || "";
+    const user = localStorage.getItem("nichePayUser")
+        ? JSON.parse(localStorage.getItem("nichePayUser")!)
+        : null;
+    const firstName = user?.name?.split(" ")[0] || "Driver";
 
+    useEffect(() => {
+        if (!userId) { navigate("/login"); return; }
+        loadData();
+    }, [userId]);
+
+    const loadData = async () => {
+        setIsLoading(true);
+        try {
+            const [payoutRes, policyRes] = await Promise.allSettled([
+                fetch(`${PAYMENT_SERVICE}/api/disruption-payouts/${userId}`),
+                fetch(`${POLICY_SERVICE}/api/policy/user/${userId}`),
+            ]);
+            if (payoutRes.status === "fulfilled" && payoutRes.value.ok) {
+                const d = await payoutRes.value.json();
+                setPayouts(d.payouts || []);
+                setTotalPayout(d.totalAmount || 0);
+            }
+            if (policyRes.status === "fulfilled" && policyRes.value.ok) {
+                setPolicy(await policyRes.value.json());
+            }
+        } catch (e) { console.error(e); }
+        setIsLoading(false);
+    };
+
+    const pushLocation = (lat: number, lng: number, dateStr?: string, pc?: string) => {
         fetch("http://localhost:5004/api/address/update", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        }).catch(err => console.error("Failed to push location", err));
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId, lat, lng, date: dateStr, pincode: pc, data: { email: user?.email } })
+        }).catch(console.error);
     };
 
     const handleCurrentLocation = () => {
-        if ("geolocation" in navigator) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    pushLocation(pos.coords.latitude, pos.coords.longitude);
-                    setShowLocationModal(false);
-                },
-                (err) => console.warn(err),
-                { enableHighAccuracy: true }
-            );
-        }
+        navigator.geolocation?.getCurrentPosition(
+            (p) => { pushLocation(p.coords.latitude, p.coords.longitude); setShowLocationModal(false); },
+            console.warn, { enableHighAccuracy: true }
+        );
     };
 
     const handleManualLocation = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!manualCity.trim()) return;
-        
         setIsFetchingLocation(true);
         try {
             const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualCity)}&format=json&limit=1&addressdetails=1`);
-            const data = await res.json();
-            
-            if (data && data.length > 0) {
-                const lat = parseFloat(data[0].lat);
-                const lng = parseFloat(data[0].lon);
-                // Prioritize manual input, fallback to geocoded postcode if any
-                const resolvedPincode = manualPincode || data[0].address?.postcode || "000000";
-                pushLocation(lat, lng, manualDate, resolvedPincode);
+            const d = await res.json();
+            if (d?.length > 0) {
+                pushLocation(parseFloat(d[0].lat), parseFloat(d[0].lon), manualDate, manualPincode || d[0].address?.postcode);
                 setShowLocationModal(false);
-            } else {
-                alert("City not found globally on OpenStreetMap! Please enter a valid city name.");
-                setIsFetchingLocation(false);
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Network error mapping the specified city.");
-            setIsFetchingLocation(false);
-        }
+            } else alert("City not found.");
+        } catch { alert("Network error."); }
+        setIsFetchingLocation(false);
     };
 
-    const handleLogout = (e: React.MouseEvent) => {
-        e.preventDefault();
-        localStorage.removeItem("partnerId");
-        navigate("/");
-    };
-
-    const navLinks = [
-        { to: "/dashboard", icon: <FiGrid className="size-4" />, label: "Dashboard", active: true },
-        { to: "/policy", icon: <FiFileText className="size-4" />, label: "My Policy" },
-        { to: "/claims", icon: <FiClock className="size-4" />, label: "Claims History" },
-        { to: "#", icon: <FiBriefcase className="size-4" />, label: "Wallet" },
-        { to: "/profile", icon: <FiUser className="size-4" />, label: "Profile", mt: true },
-    ];
+    const latestPayout = payouts[0];
+    const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
 
     return (
-        <div className="flex h-[100dvh] bg-slate-50 overflow-hidden font-poppins">
-            {showLocationModal && (
-                <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center backdrop-blur-sm p-4">
-                    <div className="bg-[#1e1e24] p-6 rounded-3xl shadow-2xl max-w-sm w-full border border-white/10 text-white relative">
-                        <button onClick={() => setShowLocationModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
-                            <FiX size={20} />
-                        </button>
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                            <FiMapPin className="text-primary-500" /> Set Work Location
-                        </h2>
-                        
-                        <button 
-                            onClick={handleCurrentLocation}
-                            className="w-full py-3 bg-primary-500 hover:bg-primary-600 rounded-xl font-semibold transition-colors mb-6 flex justify-center items-center gap-2 shadow-lg shadow-primary-500/20"
+        <AppShell title="Dashboard" subtitle={`${getGreeting()}, ${firstName}`}>
+
+            {/* Location Modal */}
+            <AnimatePresence>
+                {showLocationModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-xl p-4">
+                        <motion.div
+                            initial={{ scale: 0.92, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.92, opacity: 0 }}
+                            transition={spring}
+                            className="bg-black border border-white/10 p-7 rounded-2xl shadow-2xl max-w-sm w-full text-white relative"
                         >
-                            📍 Use Live GPS
-                        </button>
-
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="h-px bg-white/10 flex-1"></div>
-                            <span className="text-xs text-slate-400 font-medium uppercase tracking-widest">Or Manual</span>
-                            <div className="h-px bg-white/10 flex-1"></div>
-                        </div>
-
-                        <form onSubmit={handleManualLocation} className="space-y-4">
-                            <div>
-                                <label className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1 block">Simulate ANY City</label>
-                                <input 
-                                    type="text" 
-                                    value={manualCity} 
-                                    onChange={(e) => setManualCity(e.target.value)}
-                                    placeholder="e.g. Vijayawada, Tokyo..."
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500 text-white"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1 block">Pincode (Optional)</label>
-                                <input 
-                                    type="text" 
-                                    value={manualPincode} 
-                                    onChange={(e) => setManualPincode(e.target.value)}
-                                    placeholder="e.g. 522503"
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500 text-white"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1 block">Simulate Date</label>
-                                <input 
-                                    type="date" 
-                                    value={manualDate}
-                                    onChange={(e) => setManualDate(e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500"
-                                    required
-                                />
-                            </div>
-                            <button type="submit" disabled={isFetchingLocation} className={`w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl font-semibold transition-colors mt-2 text-sm border border-white/5 object-cover ${isFetchingLocation ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                {isFetchingLocation ? "Locating City globally..." : "Fetch Smart Report"}
+                            <button onClick={() => setShowLocationModal(false)} className="absolute top-4 right-4 text-white/30 hover:text-white p-1.5 hover:bg-white/5 rounded-lg transition-colors">
+                                <FiX size={15} />
                             </button>
-                        </form>
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary-500">
+                                    <FiMapPin className="size-4" />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-semibold">Set Work Location</h2>
+                                    <p className="text-[11px] text-slate-500">For disruption simulation</p>
+                                </div>
+                            </div>
+                            <motion.button whileTap={{ scale: 0.97 }} onClick={handleCurrentLocation}
+                                className="w-full py-2.5 bg-primary-600 hover:bg-primary-500 rounded-xl font-medium text-sm mb-4 flex justify-center items-center gap-2 transition-colors shadow-lg shadow-primary-600/20">
+                                <FiMapPin size={13} /> Use Live GPS
+                            </motion.button>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="h-px bg-white/5 flex-1" />
+                                <span className="text-[10px] text-slate-600 uppercase tracking-widest">or manual</span>
+                                <div className="h-px bg-white/5 flex-1" />
+                            </div>
+                            <form onSubmit={handleManualLocation} className="space-y-3">
+                                {[
+                                    { label: "City", val: manualCity, set: setManualCity, ph: "e.g. Vijayawada...", type: "text", req: true },
+                                    { label: "Pincode", val: manualPincode, set: setManualPincode, ph: "e.g. 522503", type: "text", req: false },
+                                    { label: "Simulate Date", val: manualDate, set: setManualDate, ph: "", type: "date", req: true },
+                                ].map(f => (
+                                    <div key={f.label}>
+                                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-medium mb-1.5 block">{f.label}</label>
+                                        <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} required={f.req}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary-500/50 text-white placeholder:text-slate-700 transition-colors" />
+                                    </div>
+                                ))}
+                                <button type="submit" disabled={isFetchingLocation}
+                                    className="w-full py-2.5 bg-white/5 hover:bg-white/8 rounded-xl text-sm border border-white/10 transition-colors disabled:opacity-40">
+                                    {isFetchingLocation ? "Locating..." : "Fetch Smart Report"}
+                                </button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Dashboard Content */}
+            <div className="p-4 md:p-6 relative">
+
+                {/* ── HERO WELCOME ROW ───────────────────────── */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0, ...spring }}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                    <div>
+                        <p className="text-[11px] text-slate-600 uppercase tracking-widest mb-1">{today}</p>
+                        <h1 className="text-2xl font-semibold text-white tracking-tight">
+                            {getGreeting()}, <span className="text-primary-400">{firstName}</span> 👋
+                        </h1>
+                        <p className="text-[15px] text-slate-500 mt-0.5">Here's your insurance overview for today.</p>
                     </div>
-                </div>
-            )}
+                    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                        onClick={() => setShowLocationModal(true)}
+                        className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors shadow-lg shadow-primary-600/20 shrink-0">
+                        <FiMapPin className="size-4" /> Simulate disruption
+                    </motion.button>
+                </motion.div>
 
-            {/* Mobile Sidebar Overlay */}
-            {isSidebarOpen && (
-                <div 
-                    className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm transition-opacity"
-                    onClick={() => setIsSidebarOpen(false)}
-                />
-            )}
+                {/* ── BENTO GRID ───────────────────────────────── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
-            {/* Sidebar */}
-            <aside className={`
-                fixed inset-y-0 left-0 z-50 w-64 bg-[#1e1e24] flex flex-col justify-between transform transition-transform duration-300 ease-in-out shrink-0
-                lg:translate-x-0 lg:static lg:w-56
-                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            `}>
-                <div>
-                    {/* Logo Area */}
-                    <div className="h-16 flex items-center justify-between px-5 border-b border-white/5">
-                        <Link to="/" className="flex items-center gap-2">
-                            <Logo className="h-6 text-primary-500" />
-                            <span className="text-lg font-bold text-white tracking-tight">NichePay</span>
-                        </Link>
-                        <button 
-                            className="lg:hidden text-white p-1 hover:bg-white/10 rounded-lg transition-colors"
-                            onClick={() => setIsSidebarOpen(false)}
-                        >
-                            <FiX className="size-5" />
-                        </button>
-                    </div>
+                    {/* Card 1 — Shield / Policy Card (large) */}
+                    <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, ...spring }}
+                        className="md:col-span-1 bg-white/5 border border-white/10 rounded-2xl p-5 relative overflow-hidden hover:bg-white/8 transition-colors group">
+                        <div className="absolute -top-12 -right-12 size-36 bg-primary-600 blur-[60px] opacity-25 pointer-events-none" />
+                        <div className="relative z-10 flex flex-col h-full min-h-[190px] justify-between">
+                            <div className="flex justify-between items-start">
+                                <div className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary-500 group-hover:bg-primary-600/20 group-hover:border-primary-500/20 transition-colors">
+                                    <FiShield className="size-5" />
+                                </div>
+                                <span className="text-[10px] font-medium text-primary-400 bg-primary-200/15 px-2.5 py-1 rounded-full">
+                                    {isLoading ? "..." : policy ? "● Active" : "● No Plan"}
+                                </span>
+                            </div>
+                            <div className="mt-4">
+                                <p className="xs text-slate-500 uppercase tracking-widest font-medium mb-1">Current plan</p>
+                                <p className="text-[15px] font-semibold text-white">{isLoading ? "—" : policy?.planName || "No Policy"}</p>
+                                <p className="text-[13px] text-slate-500 mt-1">Daily wage protected: <span className="text-white font-medium">₹{policy?.dailyWage || "—"}</span></p>
+                            </div>
+                            <Link to="/policy" className="mt-4 flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300 transition-colors font-medium">
+                                View policy details <FiArrowUpRight className="size-3" />
+                            </Link>
+                        </div>
+                    </motion.div>
 
-                    {/* Navigation Links */}
-                    <nav className="mt-4 px-3 space-y-1 text-sm">
-                        {navLinks.map((link, idx) => (
-                            <Link 
-                                key={idx}
-                                to={link.to} 
-                                onClick={() => setIsSidebarOpen(false)}
-                                className={`
-                                    flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200
-                                    ${link.active 
-                                        ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/20 font-semibold' 
-                                        : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium'}
-                                    ${link.mt ? 'mt-4' : ''}
-                                `}
-                            >
-                                {link.icon}
-                                {link.label}
+                    {/* Card 2 — Total Earned (accent) */}
+                    <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, ...spring }}
+                        className="md:col-span-1 bg-primary-500/7 border border-primary-500/20 rounded-2xl p-5 relative overflow-hidden group hover:bg-primary-600/20 transition-colors">
+                        <div className="absolute -bottom-10 -left-10 size-32 bg-primary-600 blur-[50px] opacity-30 pointer-events-none" />
+                        <div className="relative z-10 flex flex-col min-h-[190px] justify-between">
+                            <div className="flex justify-between items-start">
+                                <div className="size-10 rounded-xl bg-primary-600/20 border border-primary-500/30 flex items-center justify-center text-primary-400">
+                                    <FiZap className="size-5" />
+                                </div>
+                                <span className="text-[10px] font-medium text-primary-400 bg-primary-200/15 px-2.5 py-1 rounded-full">
+                                    {isLoading ? "—" : `${payouts.length} claim${payouts.length !== 1 ? "s" : ""}`}
+                                </span>
+                            </div>
+                            <div className="mt-4">
+                                <p className="text-[11px] text-primary-400/70 uppercase tracking-widest font-medium mb-1">Total Payout Earned</p>
+                                <p className="text-3xl font-bold text-white tracking-tight">
+                                    {isLoading ? "—" : `₹${totalPayout.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
+                                </p>
+                                <p className="text-[13px] text-primary-400/60 mt-2 flex items-center gap-1">
+                                    <FiCheckCircle className="size-3" /> Auto-credited to your account
+                                </p>
+                            </div>
+                            <Link to="/claims" className="mt-4 flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300 transition-colors font-medium">
+                                Full claim history <FiArrowUpRight className="size-3" />
+                            </Link>
+                        </div>
+                    </motion.div>
+
+                    {/* Card 3 — Latest Payout */}
+                    <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, ...spring }}
+                        className="md:col-span-2 xl:col-span-1 bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/8 transition-colors">
+                        <div className="flex justify-between items-center mb-4">
+                            <p className="text-[15px] font-semibold text-white">Latest Payout</p>
+                            {latestPayout && (
+                                <span className="text-[10px] text-primary-400 bg-primary-200/15 px-2.5 py-1 rounded-full font-medium">Processed</span>
+                            )}
+                        </div>
+                        {isLoading ? (
+                            <div className="h-28 bg-white/5 rounded-xl animate-pulse" />
+                        ) : latestPayout ? (
+                            <div>
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary-500 shrink-0">
+                                        <FiCloudRain className="size-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[15px] font-medium text-white">{latestPayout.reason}</p>
+                                        <p className="text-[13px] text-slate-500">{latestPayout.date}</p>
+                                    </div>
+                                </div>
+                                <div className="bg-white/5 border border-white/5 rounded-xl px-4 py-3 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[11px] text-slate-500 uppercase tracking-widest mb-0.5">Amount credited</p>
+                                        <p className="text-xl font-bold text-primary-400">+₹{latestPayout.amount.toFixed(2)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">Hours covered</p>
+                                        <p className="text-xl font-bold text-white">{latestPayout.disruptedHours}h</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="h-28 flex flex-col items-center justify-center text-center">
+                                <FiAlertTriangle className="size-5 text-slate-600 mb-2" />
+                                <p className="text-slate-500 text-sm">No payouts yet</p>
+                                <p className="text-slate-600 text-xs mt-0.5">Trigger a disruption to start</p>
+                            </div>
+                        )}
+                    </motion.div>
+
+                    {/* Card 4 — Recent Payouts List (wide) */}
+                    <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, ...spring }}
+                        className="md:col-span-2 bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/8 transition-colors">
+                        <div className="flex justify-between items-center mb-4">
+                            <p className="text-[15px] font-semibold text-white">Payout History</p>
+                            <Link to="/claims" className="text-[11px] text-primary-400 hover:text-primary-300 flex items-center gap-1 font-medium transition-colors">
+                                See all <FiArrowUpRight className="size-3" />
+                            </Link>
+                        </div>
+                        {isLoading ? (
+                            <div className="flex flex-col gap-2">
+                                {[1, 2].map(i => <div key={i} className="h-12 bg-white/5 rounded-xl animate-pulse" />)}
+                            </div>
+                        ) : payouts.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                                {payouts.slice(0, 4).map((p, i) => (
+                                    <motion.div key={p._id}
+                                        initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: i * 0.06 + 0.3, ...spring }}
+                                        className="flex items-center justify-between px-4 py-2.5 bg-white/5 border border-white/5 rounded-xl hover:bg-white/8 hover:border-white/10 transition-all group cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary-500 group-hover:bg-primary-600/20 group-hover:border-primary-500/20 transition-colors">
+                                                <FiCloudRain className="size-3.5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[15px] font-medium text-white leading-tight">{p.reason}</p>
+                                                <p className="text-[13px] text-slate-500">{p.date} · {p.disruptedHours}hrs</p>
+                                            </div>
+                                        </div>
+                                        <span className="text-primary-400 font-semibold text-[15px]">+₹{p.amount.toFixed(2)}</span>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="h-24 flex items-center justify-center text-slate-600 text-sm">
+                                No payout history found
+                            </div>
+                        )}
+                    </motion.div>
+
+                    {/* Card 5 — Quick Nav (tall narrow) */}
+                    <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, ...spring }}
+                        className="md:col-span-2 xl:col-span-1 bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col gap-2 hover:bg-white/8 transition-colors">
+                        <p className="text-[15px] font-semibold text-white mb-2">Quick Access</p>
+                        {[
+                            { to: "/policy", label: "My Policy", sub: "Coverage details", icon: <FiShield /> },
+                            { to: "/claims", label: "Claims History", sub: "All payouts", icon: <FiCloudRain /> },
+                            { to: "/profile", label: "Profile", sub: "Account & settings", icon: <FiCheckCircle /> },
+                        ].map((item, i) => (
+                            <Link key={i} to={item.to}
+                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/8 border border-transparent hover:border-white/10 transition-all group">
+                                <div className="size-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary-500 group-hover:bg-primary-600/20 group-hover:border-primary-500/20 transition-colors shrink-0">
+                                    <span className="size-3.5">{item.icon}</span>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-white group-hover:text-primary-400 transition-colors">{item.label}</p>
+                                    <p className="text-[10px] text-slate-500">{item.sub}</p>
+                                </div>
+                                <FiArrowUpRight className="size-3.5 text-slate-600 group-hover:text-primary-400 transition-colors ml-auto" />
                             </Link>
                         ))}
-                    </nav>
+                    </motion.div>
+
                 </div>
-
-                <div className="p-3 mb-2 text-sm">
-                    <button onClick={handleLogout} className="w-full flex items-center gap-3 text-slate-400 hover:text-white hover:bg-white/5 px-3.5 py-2.5 rounded-xl font-medium transition-colors">
-                        <FiLogOut className="size-4" />
-                        Log Out
-                    </button>
-                </div>
-            </aside>
-
-            {/* Main Content Area */}
-            <main className="flex-1 flex flex-col h-[100dvh] overflow-hidden w-full relative">
-                {/* Header */}
-                <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shrink-0 sticky top-0 z-10 w-full">
-                    <div className="flex items-center gap-4 truncate">
-                        <button 
-                            className="lg:hidden p-2 text-slate-600 hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors shrink-0"
-                            onClick={() => setIsSidebarOpen(true)}
-                        >
-                            <FiMenu className="size-5" />
-                        </button>
-                        <div className="truncate">
-                            <h1 className="text-lg md:text-xl font-bold text-slate-900 leading-tight">Dashboard</h1>
-                            <p className="hidden md:block text-xs text-slate-500 font-medium tracking-tight">Welcome back, Rahul • Zomato ID: #8821</p>
-                            <p className="md:hidden text-[10px] text-slate-500 font-medium">Rahul • #8821</p>
-                        </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 md:gap-3 shrink-0">
-                        <button className="size-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors relative">
-                            <FiBell className="size-4" />
-                            <div className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white"></div>
-                        </button>
-                        <Link to="/profile" className="size-9 rounded-full bg-slate-300 overflow-hidden border border-slate-200 ml-1">
-                            <img src="https://i.pravatar.cc/150?u=a042581f4e29026024d" alt="Profile" className="w-full h-full object-cover" />
-                        </Link>
-                    </div>
-                </header>
-
-                {/* Dashboard Scroll Container */}
-                <div className="p-4 md:p-6 lg:p-8 flex-1 overflow-y-auto w-full flex flex-col lg:justify-center">
-                    {/* The Grid - Removed h-full on mobile for natural scrolling, h-auto ensures boxes don't overflow parent before scroll kicks in */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-4 h-auto lg:h-full">
-                        
-                        {/* Policy Holder Card - Big Black Box */}
-                        <div className="bg-[#1e1e24] rounded-3xl p-6 text-white relative overflow-hidden shadow-xl shadow-slate-200 flex flex-col justify-between min-h-[240px] md:min-h-[220px]">
-                            <div className="absolute -top-10 -right-10 size-28 bg-white/5 rounded-full blur-2xl"></div>
-                            
-                            <div className="flex justify-between items-start relative z-10 mb-4 md:mb-0">
-                                <FiShield className="size-5 text-slate-300" />
-                                <div className="flex gap-1 opacity-50">
-                                    <div className="h-3 w-0.5 rounded-full bg-white"></div>
-                                    <div className="h-4 w-0.5 rounded-full bg-white mt-1"></div>
-                                    <div className="h-2 w-0.5 rounded-full bg-white mt-2"></div>
-                                </div>
-                            </div>
-                            
-                            <div className="relative z-10">
-                                <p className="text-[10px] text-slate-400 font-bold tracking-widest mb-1 uppercase">Policy Holder</p>
-                                <h2 className="text-xl font-bold leading-tight">Rahul Sharma</h2>
-                            </div>
-
-                            <div className="relative z-10 mt-4">
-                                <p className="text-[10px] text-slate-400 font-bold tracking-widest mb-1.5 uppercase">Protected Balance (Month)</p>
-                                <div className="flex items-end gap-2 flex-wrap">
-                                    <span className="text-3xl md:text-4xl font-bold tracking-tight">₹5,200</span>
-                                    <span className="text-emerald-400 text-xs font-semibold mb-1.5 flex items-center gap-0.5">
-                                        <FiArrowUpRight className="size-3" /> Active
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="flex justify-between pt-4 border-t border-white/10 relative z-10 mt-5">
-                                <div>
-                                    <p className="text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-0.5 leading-none">Plan</p>
-                                    <p className="text-sm font-semibold mt-1">Pro Shield</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-0.5 leading-none">Renewal</p>
-                                    <p className="text-sm font-semibold mt-1">Mon, 12 Oct</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Quick Actions Grid */}
-                        <div className="grid grid-cols-2 gap-4 h-full">
-                            {[
-                                { to: "/policy", icon: <FiUmbrella />, label: "Check Cover", bg: "bg-orange-50", color: "text-primary-500", border: "hover:border-primary-200" },
-                                { to: "/claims", icon: <FiFileText />, label: "Claims", bg: "bg-purple-50", color: "text-purple-500", border: "hover:border-purple-200" },
-                                { to: "#", icon: <FiCreditCard />, label: "Withdraw", bg: "bg-blue-50", color: "text-blue-500", border: "hover:border-blue-200" },
-                                { to: "/claims", icon: <FiClock />, label: "History", bg: "bg-slate-50", color: "text-slate-600", border: "hover:border-slate-300" }
-                            ].map((action, idx) => (
-                                <Link 
-                                    key={idx}
-                                    to={action.to} 
-                                    className={`bg-white rounded-3xl p-4 md:p-3 xl:p-4 flex flex-col items-center justify-center gap-3 hover:shadow-lg transition-all border border-slate-100 group ${action.border}`}
-                                >
-                                    <div className={`size-11 md:size-10 xl:size-12 rounded-full ${action.bg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                                        {cloneElement(action.icon as React.ReactElement<any>, { className: `size-5 md:size-4 xl:size-5 ${action.color}` })}
-                                    </div>
-                                    <span className="text-sm md:text-xs xl:text-sm font-bold text-slate-700 text-center leading-tight whitespace-normal">{action.label}</span>
-                                </Link>
-                            ))}
-                        </div>
-
-                        {/* Disruption Monitor */}
-                        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative flex flex-col justify-between min-h-[240px] md:min-h-[220px]">
-                            <div className="flex justify-between items-start">
-                                <div className="max-w-[80%] pr-2">
-                                    <h3 className="font-bold text-slate-900 tracking-tight text-base mb-0.5 uppercase">Disruption Monitor</h3>
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Live Bangalore Zone 1</p>
-                                </div>
-                                <div className="size-2 bg-red-500 rounded-full animate-pulse border-2 border-white mt-1 shrink-0"></div>
-                            </div>
-
-                            <div className="flex justify-between items-end mt-4">
-                                <h2 className="text-2xl font-bold text-slate-900 leading-none">Heavy<br/>Rain</h2>
-                                <div className="text-right">
-                                    <span className="text-primary-500 font-bold text-2xl block leading-none">85%</span>
-                                    <span className="text-primary-500 text-[10px] uppercase tracking-wider font-black">Intensity</span>
-                                </div>
-                            </div>
-                            
-                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mt-4 mb-4 shadow-inner">
-                                <div className="h-full bg-primary-500 w-[85%] rounded-full shadow-lg shadow-primary-500/20"></div>
-                            </div>
-
-                            <div className="bg-orange-50 border border-primary-100 rounded-2xl p-4 flex gap-3 items-center mt-auto">
-                                <div className="text-primary-600 shrink-0">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                                </div>
-                                <p className="text-xs text-primary-800 font-bold leading-none">Payout Active: ₹150 / hr</p>
-                            </div>
-                        </div>
-
-                        {/* Premium Plan Box */}
-                        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between min-h-[240px] md:min-h-[220px]">
-                            <div className="flex justify-between items-start mb-4">
-                                <h3 className="font-bold text-slate-900 text-base uppercase tracking-tight">Premium Plan</h3>
-                                <button className="text-[10px] font-black text-primary-500 hover:text-primary-600 transition-colors uppercase tracking-widest">+ Upgrade</button>
-                            </div>
-
-                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 mb-4 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 w-16 h-full bg-primary-500/5 -skew-x-12 translate-x-8"></div>
-                                <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase mb-1.5">Weekly Auto-Debit</p>
-                                <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">₹84.00</h2>
-                                <div className="flex items-center gap-1.5 text-slate-500 text-xs font-semibold italic">
-                                    <FiClock className="size-3.5 shrink-0" />
-                                    <span className="truncate">Next: Tomorrow, 2 PM</span>
-                                </div>
-                            </div>
-
-                            <div className="border border-slate-100 rounded-2xl p-4 flex items-center gap-4 mt-auto hover:bg-slate-50/50 transition-colors">
-                                <div className="size-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                                    <FiCheckCircle className="size-5 text-emerald-500" />
-                                </div>
-                                <div className="truncate">
-                                    <p className="text-slate-900 font-bold text-sm truncate">Coverage Active</p>
-                                    <p className="text-slate-500 text-[10px] uppercase font-bold mt-0.5 truncate tracking-tighter">Verified Continuous</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Protection Stats */}
-                        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between min-h-[240px] md:min-h-[220px]">
-                            <div className="flex justify-between items-start mb-4">
-                                <h3 className="font-bold text-slate-900 text-base leading-tight uppercase tracking-tight">Income<br/>Ledger</h3>
-                                <button className="flex items-center gap-1 text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200 tracking-widest shrink-0">
-                                    Month
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                                </button>
-                            </div>
-
-                            <div className="flex justify-between mb-4 px-1 gap-4">
-                                <div className="truncate">
-                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Lost</p>
-                                    <p className="text-xl font-black text-slate-900 tracking-tighter">₹4,800</p>
-                                </div>
-                                <div className="text-right truncate">
-                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Saved</p>
-                                    <p className="text-xl font-black text-primary-500 tracking-tighter">₹3,500</p>
-                                </div>
-                            </div>
-
-                            <div className="relative flex-1 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center p-5 min-h-[110px] mt-auto">
-                                <div className="relative w-28 h-14 overflow-hidden">
-                                    <div className="absolute top-0 left-0 w-28 h-28 rounded-full border-[12px] border-slate-200 border-b-transparent border-r-transparent -rotate-45"></div>
-                                    <div className="absolute top-0 left-0 w-28 h-28 rounded-full border-[12px] border-primary-500 border-b-transparent border-r-transparent rotate-[25deg]"></div>
-                                </div>
-                                <div className="absolute bottom-4 flex flex-col items-center">
-                                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-0.5">Coverage</span>
-                                    <span className="text-3xl font-black text-slate-900 leading-none tracking-tight">72%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Recent Payouts */}
-                        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between min-h-[240px] md:min-h-[220px]">
-                            <div className="flex justify-between items-start mb-4">
-                                <h3 className="font-bold text-slate-900 text-base uppercase tracking-tight">Payout History</h3>
-                                <button className="text-slate-400 hover:text-slate-600 p-1 shrink-0">
-                                    <FiMoreVertical className="size-5" />
-                                </button>
-                            </div>
-
-                            <div className="flex flex-col gap-4 mt-auto">
-                                {/* Item 1 */}
-                                <div className="flex items-center justify-between group cursor-pointer overflow-hidden">
-                                    <div className="flex gap-4 items-center truncate">
-                                        <div className="size-10 rounded-2xl bg-slate-100 shrink-0 flex items-center justify-center group-hover:bg-primary-500 group-hover:text-white transition-all text-slate-500">
-                                            <FiCloudRain className="size-5" />
-                                        </div>
-                                        <div className="truncate">
-                                            <p className="font-bold text-slate-900 text-sm leading-tight truncate">Rain: 2hrs</p>
-                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5 truncate">Today • 16:05</p>
-                                        </div>
-                                    </div>
-                                    <span className="font-black text-emerald-500 text-base shrink-0 ml-2">+₹300</span>
-                                </div>
-                                
-                                {/* Item 2 */}
-                                <div className="flex items-center justify-between group cursor-pointer overflow-hidden">
-                                    <div className="flex gap-4 items-center truncate">
-                                        <div className="size-10 rounded-2xl bg-slate-100 shrink-0 flex items-center justify-center group-hover:bg-primary-500 group-hover:text-white transition-all text-slate-500">
-                                            <FiSun className="size-5" />
-                                        </div>
-                                        <div className="truncate">
-                                            <p className="font-bold text-slate-900 text-sm leading-tight truncate">Heat Wave</p>
-                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5 truncate">Wed • 13:05</p>
-                                        </div>
-                                    </div>
-                                    <span className="font-black text-emerald-500 text-base shrink-0 ml-2">+₹150</span>
-                                </div>
-
-                                {/* Item 3 */}
-                                <div className="flex items-center justify-between group cursor-pointer overflow-hidden">
-                                    <div className="flex gap-4 items-center truncate">
-                                        <div className="size-10 rounded-2xl bg-slate-100 shrink-0 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-all text-slate-500">
-                                            <FiMinusCircle className="size-5" />
-                                        </div>
-                                        <div className="truncate">
-                                            <p className="font-bold text-slate-900 text-sm leading-tight truncate">Premium</p>
-                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5 truncate">Mon • 13:05</p>
-                                        </div>
-                                    </div>
-                                    <span className="font-black text-slate-900 text-base shrink-0 ml-2">-₹84</span>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-            </main>
-        </div>
+            </div>
+        </AppShell>
     );
 }
