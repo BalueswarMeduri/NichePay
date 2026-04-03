@@ -5,11 +5,13 @@ from .news_service import get_local_news
 from ..utils.time_utils import format_time_window
 from ..utils.geo_utils import get_zone_name
 
+
 def _p(msg="", flush=True):
     """Unbuffered print that always shows in terminal even from background threads."""
     sys.stdout.write(msg + "\n")
     if flush:
         sys.stdout.flush()
+
 
 def build_disruption_array(lat: float, lng: float, date: str, pincode: str):
     weather_data = get_hourly_weather(lat, lng, date)
@@ -18,6 +20,7 @@ def build_disruption_array(lat: float, lng: float, date: str, pincode: str):
 
     rain_list = [float(hour.get('precipitation', 0.0)) for hour in weather_data]
     rain_data = rain_list[:24]
+
     temp_list = [float(hour.get('temperature', 25.0)) for hour in weather_data]
     temp_data = temp_list[:24]
 
@@ -37,8 +40,9 @@ def build_disruption_array(lat: float, lng: float, date: str, pincode: str):
     for hour in range(24):
         rain = rain_data[hour] if rain_data and hour < len(rain_data) and rain_data[hour] is not None else 0
         temp = temp_data[hour] if temp_data and hour < len(temp_data) and temp_data[hour] is not None else 25
-        aqi  = aqi_data[hour]  if aqi_data  and hour < len(aqi_data)  and aqi_data[hour]  is not None else 100
+        aqi = aqi_data[hour] if aqi_data and hour < len(aqi_data) and aqi_data[hour] is not None else 100
 
+        # 🌧 Rain detection
         if rain > 0.5:
             if current_rain_start is None:
                 current_rain_start = hour
@@ -49,6 +53,7 @@ def build_disruption_array(lat: float, lng: float, date: str, pincode: str):
                 _add("rain", current_rain_start, hour, level=level)
                 current_rain_start = None
 
+        # 🔥 Heat detection
         if temp > 45:
             if current_heat_start is None:
                 current_heat_start = hour
@@ -57,6 +62,7 @@ def build_disruption_array(lat: float, lng: float, date: str, pincode: str):
                 _add("heat", current_heat_start, hour, level="heavy")
                 current_heat_start = None
 
+        # 💨 Pollution detection
         if aqi > 400:
             if current_poll_start is None:
                 current_poll_start = hour
@@ -65,20 +71,24 @@ def build_disruption_array(lat: float, lng: float, date: str, pincode: str):
                 _add("pollution", current_poll_start, hour, level="heavy")
                 current_poll_start = None
 
+    # Handle ongoing events till end of day
     if current_rain_start is not None:
         peak = max(rain_data[current_rain_start:24])
         level = "heavy" if peak > 7.5 else "medium" if peak > 2.0 else "light"
         _add("rain", current_rain_start, 24, level=level)
+
     if current_heat_start is not None:
         _add("heat", current_heat_start, 24, level="heavy")
+
     if current_poll_start is not None:
         _add("pollution", current_poll_start, 24, level="heavy")
 
+    # Merge disruptions
     weather_disruptions = disruptions
-    social_disruptions  = news_disruptions
-    final_disruptions   = weather_disruptions + social_disruptions
+    social_disruptions = news_disruptions
+    final_disruptions = weather_disruptions + social_disruptions
 
-    # ── Terminal Output (unbuffered) ───────────────────────────
+    # ── Terminal Output (clean debug logs) ──
     W = 62
     _p()
     _p("=" * W)
@@ -103,11 +113,10 @@ def build_disruption_array(lat: float, lng: float, date: str, pincode: str):
     else:
         _p(f"  RESULT: {len(final_disruptions)} disruption event(s) found:")
         for i, d in enumerate(final_disruptions, 1):
-            dtype  = d.get("type", "?").upper()
-            level  = d.get("level", "?")
+            dtype = d.get("type", "?").upper()
+            level = d.get("level", "?")
             window = d.get("time", "?")
-            tag    = f"[{dtype}]"
-            _p(f"  {i}. {tag:<10}  Level: {level:<8}  Window: {window}")
+            _p(f"  {i}. [{dtype}]  Level: {level:<8}  Window: {window}")
 
     if social_disruptions:
         _p(f"  Social events: {len(social_disruptions)}")
@@ -116,7 +125,6 @@ def build_disruption_array(lat: float, lng: float, date: str, pincode: str):
 
     _p("=" * W)
     _p()
-    # ──────────────────────────────────────────────────────────
 
     return {
         "date": date,
@@ -125,7 +133,7 @@ def build_disruption_array(lat: float, lng: float, date: str, pincode: str):
         "zone": get_zone_name(lat, lng, pincode),
         "disruptionsByType": {
             "weather": weather_disruptions,
-            "social":  social_disruptions,
+            "social": social_disruptions,
         },
         "disruptions": final_disruptions,
     }

@@ -15,7 +15,6 @@ def _print_disruption_summary(source: str, user_id: str, date: str, data: dict):
     social = data.get("disruptionsByType", {}).get("social", [])
     zone = data.get("zone", "Unknown")
 
-    # ── Header ──────────────────────────────────────────────
     print("\n" + "═" * 60)
     print(f"  🤖 ML SERVICE  [{source}]")
     print("═" * 60)
@@ -28,13 +27,17 @@ def _print_disruption_summary(source: str, user_id: str, date: str, data: dict):
     if not disruptions:
         print("  ✅ No disruptions detected for this location/date.")
     else:
-        print(f"  ⚠️  {len(disruptions)} disruption(s) found:")
-        print()
+        print(f"  ⚠️  {len(disruptions)} disruption(s) found:\n")
         for i, d in enumerate(disruptions, 1):
-            dtype  = d.get("type", "?").upper()
-            level  = d.get("level", "?").upper()
+            dtype = d.get("type", "?").upper()
+            level = d.get("level", "?").upper()
             window = d.get("time", "?")
-            icon   = "🌧️" if dtype == "RAIN" else "🔥" if dtype == "HEAT" else "💨" if dtype == "POLLUTION" else "🚫"
+            icon = (
+                "🌧️" if dtype == "RAIN"
+                else "🔥" if dtype == "HEAT"
+                else "💨" if dtype == "POLLUTION"
+                else "🚫"
+            )
             print(f"  {i}. {icon}  [{dtype}] Level: {level:<8}  Window: {window}")
 
         print()
@@ -50,9 +53,9 @@ def callback(ch, method, properties, body):
     try:
         data = json.loads(body)
         pincode = data.get("pincode")
-        lat     = data.get("lat")
-        lng     = data.get("lng")
-        date    = data.get("date")
+        lat = data.get("lat")
+        lng = data.get("lng")
+        date = data.get("date")
         user_id = data.get("userId", "unknown")
 
         if pincode is None or lat is None or lng is None or date is None:
@@ -63,13 +66,14 @@ def callback(ch, method, properties, body):
         cached = redis_client.get(redis_key)
 
         if cached:
-            # ── CACHE HIT: show cached result clearly ──────────────
             print("\n" + "─" * 60)
             print(f"  ⚡ REDIS CACHE HIT  →  key: {redis_key}")
             print("─" * 60)
-            _print_disruption_summary("SERVED FROM REDIS CACHE", user_id, date, cached)
 
-            # Still publish downstream so MainService processes it
+            _print_disruption_summary(
+                "SERVED FROM REDIS CACHE", user_id, date, cached
+            )
+
             try:
                 ch.queue_declare(queue='ml.disruptions.processed', durable=True)
                 downstream_payload = {
@@ -83,12 +87,11 @@ def callback(ch, method, properties, body):
                     body=json.dumps(downstream_payload),
                     properties=pika.BasicProperties(delivery_mode=2)
                 )
-                logger.info("Cached result re-published to 'ml.disruptions.processed'")
+                logger.info("Cached result re-published")
             except Exception as pub_err:
-                logger.error(f"Failed to publish cached result: {pub_err}")
+                logger.error(f"Publish failed (cache): {pub_err}")
             return
 
-        # ── FRESH CALCULATION ──────────────────────────────────────
         print("\n" + "─" * 60)
         print(f"  🔄 FRESH ML CALCULATION  →  key: {redis_key}")
         print("─" * 60)
@@ -101,7 +104,10 @@ def callback(ch, method, properties, body):
         )
 
         redis_client.set(redis_key, disruptions_data, ttl=1800)
-        _print_disruption_summary("FRESHLY COMPUTED + CACHED", user_id, date, disruptions_data)
+
+        _print_disruption_summary(
+            "FRESHLY COMPUTED + CACHED", user_id, date, disruptions_data
+        )
 
         try:
             ch.queue_declare(queue='ml.disruptions.processed', durable=True)
@@ -116,9 +122,9 @@ def callback(ch, method, properties, body):
                 body=json.dumps(downstream_payload),
                 properties=pika.BasicProperties(delivery_mode=2)
             )
-            logger.info("Successfully pushed processed disruptions to 'ml.disruptions.processed'")
+            logger.info("Successfully pushed disruptions")
         except Exception as pub_err:
-            logger.error(f"Failed to publish to downstream queue: {pub_err}")
+            logger.error(f"Publish failed: {pub_err}")
 
     except Exception as e:
         logger.error(f"Error processing message: {e}")
@@ -130,12 +136,19 @@ def start_consuming():
         parameters = pika.URLParameters(url)
         connection = pika.BlockingConnection(parameters)
         channel = connection.channel()
+
         channel.queue_declare(queue='location.update', durable=True)
-        channel.basic_consume(queue='location.update', on_message_callback=callback, auto_ack=True)
-        logger.info("Started RabbitMQ consumer on queue 'location.update'")
+        channel.basic_consume(
+            queue='location.update',
+            on_message_callback=callback,
+            auto_ack=True
+        )
+
+        logger.info("Started RabbitMQ consumer")
         channel.start_consuming()
+
     except pika.exceptions.AMQPConnectionError:
-        logger.warning("RabbitMQ is not running. Consumer will not start.")
+        logger.warning("RabbitMQ not running")
     except Exception as e:
         logger.error(f"Consumer error: {e}")
 
@@ -143,4 +156,3 @@ def start_consuming():
 def run_consumer_in_background():
     thread = threading.Thread(target=start_consuming, daemon=True)
     thread.start()
-

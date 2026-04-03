@@ -24,18 +24,22 @@ async function startServer() {
     const app = express();
     const cors = require('cors');
     const Payment = require('./models/payment.model');
+    const DisruptionPayout = require('./models/disruption_payout.model');
 
     app.use(cors());
     app.use(express.json());
 
+    // Health check
     app.get('/health', (req, res) => {
       res.status(200).json({ status: 'OK', service: 'Payment Service' });
     });
 
+    // Payment status API
     app.get('/api/payments/status/:userId', async (req, res) => {
       try {
         const { userId } = req.params;
         const record = await Payment.findOne({ userId, status: 'SUCCESS' });
+
         if (record) {
           res.status(200).json({ hasPlan: true, plan: record.plan });
         } else {
@@ -46,22 +50,30 @@ async function startServer() {
       }
     });
 
-    // Get disruption payout history for a user
-    const DisruptionPayout = require('./models/disruption_payout.model');
+    // ✅ Disruption payout history (kept from final)
     app.get('/api/disruption-payouts/:userId', async (req, res) => {
       try {
         const { userId } = req.params;
-        const payouts = await DisruptionPayout.find({ userId }).sort({ createdAt: -1 }).limit(20);
+
+        const payouts = await DisruptionPayout
+          .find({ userId })
+          .sort({ createdAt: -1 })
+          .limit(20);
+
         const total = payouts.reduce((sum, p) => sum + p.amount, 0);
-        res.status(200).json({ payouts, totalAmount: total });
+
+        res.status(200).json({
+          payouts,
+          totalAmount: total
+        });
+
       } catch (error) {
         res.status(500).json({ error: 'Failed to fetch disruption payouts' });
       }
     });
 
     const port = process.env.PORT || 3000;
-    
-    // Explicitly binding to 0.0.0.0 is best practice for Docker containers
+
     const server = app.listen(port, '0.0.0.0', () => {
       console.log(`🚀 Payment Service running on port ${port} in ${process.env.NODE_ENV || 'development'} mode`);
     });
