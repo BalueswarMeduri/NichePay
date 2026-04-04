@@ -17,15 +17,18 @@ app.post('/auth/login', async (req, res) => {
       return res.status(400).json({ message: "partnerId is required" });
     }
 
+    const dummyZomatoUrl = process.env.DUMMYZOMATO_URL || 'http://localhost:5000';
+    const paymentServiceUrl = process.env.PAYMENT_SERVICE_URL || 'http://localhost:5003';
+
     // Call the DummyZomato API to verify the partnerId
-    const zomatoResponse = await axios.post('http://localhost:5000/api/partners/login-partner-id', {
+    const zomatoResponse = await axios.post(`${dummyZomatoUrl}/api/partners/login-partner-id`, {
       partnerId: partnerId
     });
 
     let hasPlan = false;
     try {
       // Query the PaymentService to check if this specific user has purchased a plan
-      const paymentRes = await axios.get(`http://localhost:5003/api/payments/status/${partnerId}`);
+      const paymentRes = await axios.get(`${paymentServiceUrl}/api/payments/status/${partnerId}`);
       if (paymentRes.data && paymentRes.data.hasPlan) {
         hasPlan = true;
       }

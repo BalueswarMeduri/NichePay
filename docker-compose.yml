@@ -1,0 +1,150 @@
+# ══════════════════════════════════════════════════════════════
+#  NichePay — Docker Compose
+#  Cloud services (MongoDB, RabbitMQ, Redis) are NOT included
+#  here — they are managed externally and injected via .env
+# ══════════════════════════════════════════════════════════════
+
+services:
+
+  # ── DummyZomato Backend (port 5000) ─────────────────────────
+  dummyzomato-backend:
+    build:
+      context: ./Frontend/DummyZomato/backend
+    container_name: dummyzomato-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./Frontend/DummyZomato/backend/.env
+    networks:
+      - nichepay-net
+
+  # ── AuthService (port 5001) ──────────────────────────────────
+  auth-service:
+    build:
+      context: ./Backend/AuthService
+    container_name: auth-service
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - DUMMYZOMATO_URL=http://dummyzomato-backend:5000
+      - PAYMENT_SERVICE_URL=http://payment-service:5003
+    networks:
+      - nichepay-net
+
+  # ── PolicyService (port 5002) ────────────────────────────────
+  policy-service:
+    build:
+      context: ./Backend/PolicyService
+    container_name: policy-service
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    environment:
+      - DUMMYZOMATO_URL=http://dummyzomato-backend:5000
+      - PAYMENT_SERVICE_URL=http://payment-service:5003
+    env_file:
+      - ./Backend/PolicyService/.env
+    networks:
+      - nichepay-net
+
+  # ── PaymentService (port 5003) ───────────────────────────────
+  payment-service:
+    build:
+      context: ./Backend/PaymentService
+    container_name: payment-service
+    restart: unless-stopped
+    ports:
+      - "5003:5003"
+    env_file:
+      - ./Backend/PaymentService/.env
+    networks:
+      - nichepay-net
+
+  # ── AddressPolling (port 5004) ───────────────────────────────
+  address-polling:
+    build:
+      context: ./Backend/AddressPolling
+    container_name: address-polling
+    restart: unless-stopped
+    ports:
+      - "5004:5004"
+    env_file:
+      - ./Backend/AddressPolling/.env
+    networks:
+      - nichepay-net
+
+  # ── MainService (port 5005) ──────────────────────────────────
+  main-service:
+    build:
+      context: ./Backend/MainService
+    container_name: main-service
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    environment:
+      - PAYMENT_SERVICE_URL=http://payment-service:5003
+      - ML_SERVICE_URL=http://ml-service:8000
+      - DUMMYZOMATO_URL=http://dummyzomato-backend:5000
+    env_file:
+      - ./Backend/MainService/.env
+    depends_on:
+      - payment-service
+    networks:
+      - nichepay-net
+
+  # ── ML Service (port 8000) ───────────────────────────────────
+  ml-service:
+    build:
+      context: ./Backend/ML-Service
+    container_name: ml-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - ./Backend/ML-Service/.env
+    networks:
+      - nichepay-net
+
+  # ── NotificationService (port 3004) ─────────────────────────
+  notification-service:
+    build:
+      context: ./Backend/NotificationService
+    container_name: notification-service
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    env_file:
+      - ./Backend/NotificationService/.env
+    networks:
+      - nichepay-net
+
+  # ── UserDashboard Frontend (port 3000) ───────────────────────
+  user-dashboard:
+    build:
+      context: ./Frontend/UserDashboard/reactjs
+    container_name: user-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - nichepay-net
+
+  # ── DummyZomato Frontend (port 3001) ─────────────────────────
+  dummyzomato-frontend:
+    build:
+      context: ./Frontend/DummyZomato/frontend
+    container_name: dummyzomato-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    networks:
+      - nichepay-net
+
+# ── Shared network ──────────────────────────────────────────
+networks:
+  nichepay-net:
+    driver: bridge

@@ -7,10 +7,15 @@ logger = logging.getLogger(__name__)
 class RedisService:
     def __init__(self):
         try:
+            import os
+            host = os.getenv("REDIS_HOST", 'redis-13328.crce206.ap-south-1-1.ec2.cloud.redislabs.com')
+            port = int(os.getenv("REDIS_PORT", 13328))
+            password = os.getenv("REDIS_PASSWORD", 'DgspaWb4Pe7IKzaMq1M96YEMJ6tpsbSH')
+            
             self.client = redis.Redis(
-                host='redis-13328.crce206.ap-south-1-1.ec2.cloud.redislabs.com', 
-                port=13328, 
-                password='DgspaWb4Pe7IKzaMq1M96YEMJ6tpsbSH',
+                host=host, 
+                port=port, 
+                password=password,
                 db=0, 
                 decode_responses=True
             )

@@ -9,7 +9,7 @@ let channel;
 
 const connectQueue = async () => {
     try {
-        const url = 'amqps://anbqwtzw:FVgZHA5TsW1mee0cTJbCSva3mX61wPbt@puffin.rmq2.cloudamqp.com/anbqwtzw?heartbeat=60';
+        const url = process.env.RABBITMQ_URL || 'amqps://anbqwtzw:FVgZHA5TsW1mee0cTJbCSva3mX61wPbt@puffin.rmq2.cloudamqp.com/anbqwtzw?heartbeat=60';
         const conn = await amqp.connect(url);
         conn.on("error", (err) => console.error("RabbitMQ Connection Error:", err));
         
@@ -67,7 +67,8 @@ const processCompensation = async (data) => {
         console.log(`[User: ${userId}] ML Model flagged ${allDisruptions.length} disruption event(s)! Checking API Zomato logs...`);
         
         // Securely fetch DummyZomato hourly activity for cross validation
-        const logRes = await axios.get(`http://localhost:5000/api/partners/daily-logs/${userId}/${date}`);
+        const dummyZomatoUrl = process.env.DUMMYZOMATO_URL || 'http://localhost:5000';
+        const logRes = await axios.get(`${dummyZomatoUrl}/api/partners/daily-logs/${userId}/${date}`);
         const logData = logRes.data.log;
         
         if (!logData || !logData.hourlyActivity || logData.hourlyActivity.length === 0) {

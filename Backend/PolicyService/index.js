@@ -37,8 +37,9 @@ app.get('/api/policy/profile/:partnerId', async (req, res) => {
   try {
     const { partnerId } = req.params;
 
+    const dummyZomatoUrl = process.env.DUMMYZOMATO_URL || 'http://localhost:5000';
     const zomatoResponse = await axios.get(
-      `http://localhost:5000/api/partners/profile/${partnerId}`
+      `${dummyZomatoUrl}/api/partners/profile/${partnerId}`
     );
 
     res.status(200).json(zomatoResponse.data);
@@ -59,8 +60,9 @@ app.get('/api/policy/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
 
+    const paymentServiceUrl = process.env.PAYMENT_SERVICE_URL || 'http://localhost:5003';
     const paymentRes = await axios.get(
-      `http://localhost:5003/api/payments/status/${userId}`
+      `${paymentServiceUrl}/api/payments/status/${userId}`
     );
 
     const { hasPlan, plan } = paymentRes.data;
