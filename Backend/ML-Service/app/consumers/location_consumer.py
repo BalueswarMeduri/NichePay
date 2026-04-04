@@ -132,7 +132,8 @@ def callback(ch, method, properties, body):
 
 def start_consuming():
     try:
-        url = "amqps://anbqwtzw:FVgZHA5TsW1mee0cTJbCSva3mX61wPbt@puffin.rmq2.cloudamqp.com/anbqwtzw?heartbeat=60"
+        import os
+        url = os.getenv("RABBITMQ_URL", "amqps://anbqwtzw:FVgZHA5TsW1mee0cTJbCSva3mX61wPbt@puffin.rmq2.cloudamqp.com/anbqwtzw?heartbeat=60")
         parameters = pika.URLParameters(url)
         connection = pika.BlockingConnection(parameters)
         channel = connection.channel()
