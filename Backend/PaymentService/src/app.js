@@ -72,7 +72,7 @@ async function startServer() {
       }
     });
 
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT || 5003;
 
     const server = app.listen(port, '0.0.0.0', () => {
       console.log(`🚀 Payment Service running on port ${port} in ${process.env.NODE_ENV || 'development'} mode`);

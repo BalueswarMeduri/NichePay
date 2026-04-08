@@ -30,7 +30,7 @@ export default function PaymentPage() {
                 emailAddress = parsed.email || emailAddress;
             }
 
-            const response = await fetch('http://16.112.159.224:5002/api/policy/select-plan', {
+            const response = await fetch('http://16.112.168.86:5002/api/policy/select-plan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

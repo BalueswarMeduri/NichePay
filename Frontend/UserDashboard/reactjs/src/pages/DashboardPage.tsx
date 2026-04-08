@@ -7,8 +7,8 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import AppShell from "../components/AppShell";
 
-const PAYMENT_SERVICE = "http://16.112.159.224:5003";
-const POLICY_SERVICE = "http://16.112.159.224:5002";
+const PAYMENT_SERVICE = "http://16.112.168.86:5003";
+const POLICY_SERVICE = "http://16.112.168.86:5002";
 
 interface Payout {
     _id: string;
@@ -78,7 +78,7 @@ export default function DashboardPage() {
     };
 
     const pushLocation = (lat: number, lng: number, dateStr?: string, pc?: string) => {
-        fetch("http://16.112.159.224:5004/api/address/update", {
+        fetch("http://16.112.168.86:5004/api/address/update", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId, lat, lng, date: dateStr, pincode: pc, data: { email: user?.email } })
         }).catch(console.error);

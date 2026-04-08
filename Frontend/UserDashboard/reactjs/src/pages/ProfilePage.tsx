@@ -15,7 +15,7 @@ export default function ProfilePage() {
 
     useEffect(() => {
         if (!partnerId) { navigate("/"); return; }
-        fetch(`http://16.112.159.224:5002/api/policy/profile/${partnerId}`)
+        fetch(`http://16.112.168.86:5002/api/policy/profile/${partnerId}`)
             .then(r => r.ok ? r.json() : null)
             .then(data => setProfile(data?.partner || null))
             .catch(console.error)

@@ -14,7 +14,7 @@ const RegisterPage = () => {
         const data = Object.fromEntries(formData.entries());
 
         try {
-            const response = await fetch('http://16.112.159.224:5000/api/partners/register', {
+            const response = await fetch('http://16.112.168.86:5000/api/partners/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
