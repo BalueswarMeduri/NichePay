@@ -25,7 +25,7 @@ export default function ClaimsHistoryPage() {
     useEffect(() => {
         if (!userId) return;
 
-        fetch(`http://localhost:5003/api/disruption-payouts/${userId}`)
+        fetch(`http://16.112.159.224:5003/api/disruption-payouts/${userId}`)
             .then(res => res.json())
             .then(data => {
                 setPayouts(data.payouts || []);

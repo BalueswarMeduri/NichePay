@@ -14,7 +14,7 @@ const LoginPage = () => {
         const password = e.target.elements[1].value;
 
         try {
-            const response = await fetch('http://localhost:5000/api/partners/login', {
+            const response = await fetch('http://16.112.159.224:5000/api/partners/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, password })
