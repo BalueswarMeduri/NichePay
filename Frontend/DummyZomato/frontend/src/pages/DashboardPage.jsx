@@ -88,7 +88,7 @@ const DashboardPage = () => {
         };
         
         try {
-            const response = await fetch('http://16.112.168.86:5000/api/partners/save-log', {
+            const response = await fetch('https://nichepay.duckdns.org/api-zomato/api/partners/save-log', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(dataToSave)

@@ -25,7 +25,7 @@ export default function ClaimsHistoryPage() {
     useEffect(() => {
         if (!userId) return;
 
-        fetch(`http://16.112.168.86:5003/api/disruption-payouts/${userId}`)
+        fetch(`https://nichepay.duckdns.org/api-payment/api/disruption-payouts/${userId}`)
             .then(res => res.json())
             .then(data => {
                 setPayouts(data.payouts || []);

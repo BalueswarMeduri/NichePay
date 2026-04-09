@@ -28,7 +28,7 @@ export default function MyPolicyPage() {
 
     useEffect(() => {
         if (!userId) return;
-        fetch(`http://16.112.168.86:5002/api/policy/user/${userId}`)
+        fetch(`https://nichepay.duckdns.org/api-policy/api/policy/user/${userId}`)
             .then(r => r.ok ? r.json() : null)
             .then(data => setPolicy(data))
             .catch(console.error)

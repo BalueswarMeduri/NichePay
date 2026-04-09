@@ -26,7 +26,7 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const response = await fetch("http://16.112.168.86:5001/auth/login", {
+            const response = await fetch("https://nichepay.duckdns.org/api-auth/auth/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ partnerId: zomatoId }),
