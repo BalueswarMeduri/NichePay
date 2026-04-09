@@ -121,6 +121,12 @@ export default function LoginPage() {
                                     className="block w-full appearance-none rounded-xl border border-white/10 bg-white/5 pl-11 px-3 py-3 text-white placeholder-slate-600 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 sm:text-sm transition-colors"
                                 />
                             </div>
+                            <p className="mt-2.5 text-xs text-slate-500 flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                                  <path fillRule="evenodd" d="M19 10.5a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0ZM8.25 9.75A.75.75 0 0 1 9 9h.25v3.25a.75.75 0 0 1-1.5 0v-2h-.5a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
+                                </svg>
+                                For demo testing, use Partner ID: <span className="text-primary-400 font-medium tracking-wide">42997</span>
+                            </p>
                         </div>
 
                         <div className="pt-2">

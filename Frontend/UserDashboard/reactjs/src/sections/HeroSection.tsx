@@ -10,7 +10,7 @@ export default function HeroSection() {
     return (
         <div className="relative flex flex-col items-center justify-center px-4 md:px-16 lg:px-24 xl:px-32 pb-20">
             <div className="absolute top-30 -z-10 left-1/4 size-72 bg-primary-600 blur-[300px]"></div>
-            <motion.a href="#" className="group flex items-center gap-2 rounded-full p-1 pr-3 mt-32 md:mt-44 text-primary-100 bg-primary-200/15"
+            <motion.a href="#" className="group flex items-center gap-2 rounded-full p-1 pr-3 mt-32 md:mt-38 text-primary-100 bg-primary-200/15"
                 initial={{ y: -20, opacity: 0 }}
                 whileInView={{ y: 0, opacity: 1 }}
                 viewport={{ once: true }}
@@ -19,30 +19,30 @@ export default function HeroSection() {
                 <span className="bg-primary-800 text-white text-xs px-1 py-1 rounded-full">
                     
                 </span>
-                <p className="flex items-center gap-1">
+                <p className="flex items-center gap-1 text-[11px] md:text-sm">
                     <span>Built for Zomato delivery partners</span>
-                    <ChevronRightIcon size={16} className="group-hover:translate-x-0.5 transition duration-300" />
+                    <ChevronRightIcon size={14} className="md:w-4 md:h-4 group-hover:translate-x-0.5 transition duration-300" />
                 </p>
             </motion.a>
-            <motion.h1 className="text-4xl/tight md:text-6xl/tight lg:text-7xl/tight  max-w-4xl text-center tracking-tight"
+            <motion.h1 className="text-3xl/tight md:text-6xl/tight lg:text-7xl/tight  max-w-4xl text-center tracking-tight"
                 initial={{ y: 50, opacity: 0 }}
                 whileInView={{ y: 0, opacity: 1 }}
                 viewport={{ once: true }}
                 transition={{ type: "spring", stiffness: 240, damping: 70, mass: 1 }}
             >
                 Take control of your{" "}
-                <span className="whitespace-nowrap">
-                    income <span>with certainty</span>
+                <span className="whitespace-nowrap ">
+                   <span className="text-primary-600">income</span> <span>with certainty</span>
                 </span>
             </motion.h1>
-            <motion.p className="text-base md:text-lg text-center text-slate-300 max-w-lg mt-6 px-4"
+            <motion.p className="text-sm md:text-lg text-center text-slate-300 max-w-lg mt-6 px-4"
                 initial={{ y: 50, opacity: 0 }}
                 whileInView={{ y: 0, opacity: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.2, type: "spring", stiffness: 320, damping: 70, mass: 1 }}
             >
-                Parametric insurance designed specifically for food delivery partners. The money arrives before you wake up.</motion.p>
-            <motion.div className="flex items-center gap-4 mt-8"
+                Parametric insurance designed specifically for food delivery partners.</motion.p>
+            <motion.div className="flex items-center gap-4 mt-5"
                 initial={{ y: 50, opacity: 0 }}
                 whileInView={{ y: 0, opacity: 1 }}
                 viewport={{ once: true }}

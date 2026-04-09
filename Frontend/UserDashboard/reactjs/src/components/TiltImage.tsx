@@ -43,7 +43,7 @@ export default function TiltedImage({ rotateAmplitude = 3 }) {
     }
 
     return (
-        <div style={{ perspective: "1500px" }} className="w-full -mt-2 md:-mt-10 pointer-events-none">
+        <div style={{ perspective: "1500px" }} className="w-full mt-2 md:mt-1 pointer-events-none">
             <motion.figure 
                 ref={ref} 
                 className="relative w-full h-full max-w-5xl mx-auto flex flex-col items-center justify-center pointer-events-auto cursor-pointer" 
@@ -58,11 +58,11 @@ export default function TiltedImage({ rotateAmplitude = 3 }) {
                 }}
             >
                 <motion.div 
-                    className="relative transform-3d w-full max-w-5xl rounded-[15px] xl:rounded-[24px] border border-white/10 shadow-[0_-40px_80px_-40px_var(--color-primary-500)] overflow-hidden" 
+                    className="relative transform-3d w-full max-w-5xl rounded-[15px] xl:rounded-[24px] border border-white/13 shadow-[0_-20px_60px_-20px_var(--color-primary-500)] overflow-hidden" 
                     style={{ rotateX: rotateXMouse, rotateY: rotateYMouse }} 
                 >
                     <img 
-                        src="/assets/dashboard.png"
+                        src="/assets/img-nichepay.png"
                         className="w-full object-cover will-change-transform transform-[translateZ(0)]"
                         alt="NichePay Dashboard"
                     />
@@ -71,7 +71,7 @@ export default function TiltedImage({ rotateAmplitude = 3 }) {
                     <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-primary-500/5 blur-[100px] to-transparent pointer-events-none"></div>
 
                     {/* Black shadow fade at the bottom to blend beautifully */}
-                    <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none"></div>
+                    <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black via-black/10 to-transparent pointer-events-none"></div>
                 </motion.div>
             </motion.figure>
         </div>

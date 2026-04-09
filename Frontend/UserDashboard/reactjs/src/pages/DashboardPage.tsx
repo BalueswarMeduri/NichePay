@@ -6,6 +6,8 @@ import {
 } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import AppShell from "../components/AppShell";
+import { Toaster, toast } from "react-hot-toast";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 const PAYMENT_SERVICE = "https://nichepay.duckdns.org/api-payment";
 const POLICY_SERVICE = "https://nichepay.duckdns.org/api-policy";
@@ -86,7 +88,33 @@ export default function DashboardPage() {
 
     const handleCurrentLocation = () => {
         navigator.geolocation?.getCurrentPosition(
-            (p) => { pushLocation(p.coords.latitude, p.coords.longitude); setShowLocationModal(false); },
+            (p) => { 
+                const initialPayoutCount = payouts.length;
+                pushLocation(p.coords.latitude, p.coords.longitude); 
+                setShowLocationModal(false); 
+                toast.loading("Simulating disruption... checking metrics.", { id: "sim-toast" });
+                
+                let attempts = 0;
+                const pollInterval = setInterval(async () => {
+                    attempts++;
+                    try {
+                        const payoutRes = await fetch(`${PAYMENT_SERVICE}/api/disruption-payouts/${userId}`);
+                        if (payoutRes.ok) {
+                            const pData = await payoutRes.json();
+                            if ((pData.payouts || []).length > initialPayoutCount) {
+                                setPayouts(pData.payouts);
+                                setTotalPayout(pData.totalAmount || 0);
+                                toast.success("Payout is successful! Check your mail for more details.", { id: "sim-toast" });
+                                clearInterval(pollInterval);
+                            }
+                        }
+                    } catch (e) {}
+                    if (attempts >= 15) {
+                        toast.error("No valid disruption found for this location.", { id: "sim-toast" });
+                        clearInterval(pollInterval);
+                    }
+                }, 2000);
+            },
             console.warn, { enableHighAccuracy: true }
         );
     };
@@ -98,8 +126,31 @@ export default function DashboardPage() {
             const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualCity)}&format=json&limit=1&addressdetails=1`);
             const d = await res.json();
             if (d?.length > 0) {
+                const initialPayoutCount = payouts.length;
                 pushLocation(parseFloat(d[0].lat), parseFloat(d[0].lon), manualDate, manualPincode || d[0].address?.postcode);
                 setShowLocationModal(false);
+                toast.loading("Simulating disruption... checking metrics.", { id: "sim-toast" });
+
+                let attempts = 0;
+                const pollInterval = setInterval(async () => {
+                    attempts++;
+                    try {
+                        const payoutRes = await fetch(`${PAYMENT_SERVICE}/api/disruption-payouts/${userId}`);
+                        if (payoutRes.ok) {
+                            const pData = await payoutRes.json();
+                            if ((pData.payouts || []).length > initialPayoutCount) {
+                                setPayouts(pData.payouts);
+                                setTotalPayout(pData.totalAmount || 0);
+                                toast.success("Payout is successful! Check your mail for more details.", { id: "sim-toast", duration: 8000 });
+                                clearInterval(pollInterval);
+                            }
+                        }
+                    } catch (e) {}
+                    if (attempts >= 15) {
+                        toast.error("No valid disruption found for this location.", { id: "sim-toast", duration: 4000 });
+                        clearInterval(pollInterval);
+                    }
+                }, 2000);
             } else alert("City not found.");
         } catch { alert("Network error."); }
         setIsFetchingLocation(false);
@@ -110,6 +161,7 @@ export default function DashboardPage() {
 
     return (
         <AppShell title="Dashboard" subtitle={`${getGreeting()}, ${firstName}`}>
+            <Toaster position="top-center" toastOptions={{ style: { background: '#1e293b', color: '#fff' } }} />
 
             {/* Location Modal */}
             <AnimatePresence>
@@ -213,13 +265,12 @@ export default function DashboardPage() {
                         </div>
                     </motion.div>
 
-                    {/* Card 2 — Total Earned (accent) */}
+                    {/* Card 2 — Total Earned (normal theme) */}
                     <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, ...spring }}
-                        className="md:col-span-1 bg-primary-500/7 border border-primary-500/20 rounded-2xl p-5 relative overflow-hidden group hover:bg-primary-600/20 transition-colors">
-                        <div className="absolute -bottom-10 -left-10 size-32 bg-primary-600 blur-[50px] opacity-30 pointer-events-none" />
+                        className="md:col-span-1 bg-white/5 border border-white/10 rounded-2xl p-5 relative overflow-hidden group hover:bg-white/8 transition-colors">
                         <div className="relative z-10 flex flex-col min-h-[190px] justify-between">
                             <div className="flex justify-between items-start">
-                                <div className="size-10 rounded-xl bg-primary-600/20 border border-primary-500/30 flex items-center justify-center text-primary-400">
+                                <div className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary-500 group-hover:bg-white/10 transition-colors">
                                     <FiZap className="size-5" />
                                 </div>
                                 <span className="text-[10px] font-medium text-primary-400 bg-primary-200/15 px-2.5 py-1 rounded-full">
@@ -227,12 +278,12 @@ export default function DashboardPage() {
                                 </span>
                             </div>
                             <div className="mt-4">
-                                <p className="text-[11px] text-primary-400/70 uppercase tracking-widest font-medium mb-1">Total Payout Earned</p>
+                                <p className="text-[11px] text-slate-500 uppercase tracking-widest font-medium mb-1">Total Payout Earned</p>
                                 <p className="text-3xl font-bold text-white tracking-tight">
                                     {isLoading ? "—" : `₹${totalPayout.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
                                 </p>
-                                <p className="text-[13px] text-primary-400/60 mt-2 flex items-center gap-1">
-                                    <FiCheckCircle className="size-3" /> Auto-credited to your account
+                                <p className="text-[13px] text-slate-500 mt-2 flex items-center gap-1">
+                                    <FiCheckCircle className="size-3 text-primary-500" /> Auto-credited to your account
                                 </p>
                             </div>
                             <Link to="/claims" className="mt-4 flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300 transition-colors font-medium">
@@ -283,42 +334,33 @@ export default function DashboardPage() {
                         )}
                     </motion.div>
 
-                    {/* Card 4 — Recent Payouts List (wide) */}
+                    {/* Card 4 — Recent Payouts Graph (wide) */}
                     <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, ...spring }}
                         className="md:col-span-2 bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/8 transition-colors">
                         <div className="flex justify-between items-center mb-4">
-                            <p className="text-[15px] font-semibold text-white">Payout History</p>
+                            <p className="text-[15px] font-semibold text-white">Payout History Trend</p>
                             <Link to="/claims" className="text-[11px] text-primary-400 hover:text-primary-300 flex items-center gap-1 font-medium transition-colors">
-                                See all <FiArrowUpRight className="size-3" />
+                                Detailed Logs <FiArrowUpRight className="size-3" />
                             </Link>
                         </div>
                         {isLoading ? (
-                            <div className="flex flex-col gap-2">
-                                {[1, 2].map(i => <div key={i} className="h-12 bg-white/5 rounded-xl animate-pulse" />)}
-                            </div>
+                            <div className="h-40 bg-white/5 rounded-xl animate-pulse" />
                         ) : payouts.length > 0 ? (
-                            <div className="flex flex-col gap-2">
-                                {payouts.slice(0, 4).map((p, i) => (
-                                    <motion.div key={p._id}
-                                        initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: i * 0.06 + 0.3, ...spring }}
-                                        className="flex items-center justify-between px-4 py-2.5 bg-white/5 border border-white/5 rounded-xl hover:bg-white/8 hover:border-white/10 transition-all group cursor-pointer"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="size-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary-500 group-hover:bg-primary-600/20 group-hover:border-primary-500/20 transition-colors">
-                                                <FiCloudRain className="size-3.5" />
-                                            </div>
-                                            <div>
-                                                <p className="text-[15px] font-medium text-white leading-tight">{p.reason}</p>
-                                                <p className="text-[13px] text-slate-500">{p.date} · {p.disruptedHours}hrs</p>
-                                            </div>
-                                        </div>
-                                        <span className="text-primary-400 font-semibold text-[15px]">+₹{p.amount.toFixed(2)}</span>
-                                    </motion.div>
-                                ))}
+                            <div className="h-48 w-full mt-2">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={[...payouts].reverse()}>
+                                        <XAxis dataKey="date" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                                        <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val}`} />
+                                        <Tooltip 
+                                            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
+                                            itemStyle={{ color: 'var(--color-primary-400)' }}
+                                        />
+                                        <Line type="monotone" dataKey="amount" stroke="var(--color-primary-500)" strokeWidth={3} dot={{ fill: '#0f172a', stroke: 'var(--color-primary-500)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
                             </div>
                         ) : (
-                            <div className="h-24 flex items-center justify-center text-slate-600 text-sm">
+                            <div className="h-40 flex items-center justify-center text-slate-600 text-sm">
                                 No payout history found
                             </div>
                         )}

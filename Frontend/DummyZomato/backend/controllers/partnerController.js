@@ -114,11 +114,12 @@ exports.getDailyLog = async (req, res) => {
             { timeSlot: "10:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
             { timeSlot: "11:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
             { timeSlot: "12:00", isOnline: false, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "14:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "15:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "16:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "17:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "18:00", isOnline: true, ordersAccepted: 0, earnings: 0 }
+            { timeSlot: "13:00", isOnline: Math.random() > 0.3, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "14:00", isOnline: Math.random() > 0.3, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "15:00", isOnline: Math.random() > 0.2, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "16:00", isOnline: Math.random() > 0.2, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "17:00", isOnline: Math.random() > 0.2, ordersAccepted: 0, earnings: 0 },
+            { timeSlot: "18:00", isOnline: Math.random() > 0.2, ordersAccepted: 0, earnings: 0 }
           ] 
         } 
       });

@@ -16,6 +16,13 @@ const startDisruptionConsumer = async () => {
       const data = JSON.parse(msg.content.toString());
       console.log(`📥 Received disruption payout for storage: User ${data.userId} - ₹${data.amount}`);
 
+      // Idempotency Check: Prevent duplicate payouts for the same date
+      const existingPayout = await DisruptionPayout.findOne({ userId: data.userId, date: data.date });
+      if (existingPayout) {
+          console.log(`⚠️ Payout for User ${data.userId} on ${data.date} already processed. Skipping duplicate.`);
+          return channel.ack(msg);
+      }
+
       // Save to database
       const payoutEntry = new DisruptionPayout({
         userId: data.userId,
