@@ -5,7 +5,7 @@ const handleClaimApproved = require('../handlers/claimHandler');
 const handleDisruptionPayout = require('../handlers/disruptionPayoutHandler');
 
 const QUEUE_NAME = 'notification_queue';
-const DISRUPTION_QUEUE = 'notification.disruption';
+const DISRUPTION_QUEUE = 'notification.disruption.v2';
 const EXCHANGE_NAME = 'notification_exchange';
 
 const startConsumer = async () => {

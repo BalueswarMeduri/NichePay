@@ -20,11 +20,11 @@ const connectQueue = async () => {
         
         // Setup Pub/Sub for Payout Events
         await channel.assertExchange('disruption_payout_fanout', 'fanout', { durable: true });
-        await channel.assertQueue('notification.disruption', { durable: true });
+        await channel.assertQueue('notification.disruption.v2', { durable: true });
         await channel.assertQueue('payment.disruption', { durable: true });
         
         // Bind them for Pub/Sub
-        await channel.bindQueue('notification.disruption', 'disruption_payout_fanout', '');
+        await channel.bindQueue('notification.disruption.v2', 'disruption_payout_fanout', '');
         await channel.bindQueue('payment.disruption', 'disruption_payout_fanout', '');
 
         console.log('✅ MainService connected to RabbitMQ (CloudAMQP) - Pub/Sub Ready');
