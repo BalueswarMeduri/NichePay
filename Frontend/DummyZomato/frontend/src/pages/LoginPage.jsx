@@ -6,12 +6,12 @@ import toast from 'react-hot-toast';
 const LoginPage = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = React.useState(false);
+    const [phone, setPhone] = React.useState('9981345677');
+    const [password, setPassword] = React.useState('balu');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        const phone = e.target.elements[0].value;
-        const password = e.target.elements[1].value;
 
         try {
             const response = await fetch('https://nichepay.duckdns.org/api-zomato/api/partners/login', {
@@ -58,6 +58,8 @@ const LoginPage = () => {
                                     type="tel" 
                                     placeholder="Enter your registered mobile" 
                                     className="bg-transparent border-none outline-none w-full text-gray-700 font-medium" 
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
                                     required
                                 />
                             </div>
@@ -71,6 +73,8 @@ const LoginPage = () => {
                                     type="password" 
                                     placeholder="••••••••" 
                                     className="bg-transparent border-none outline-none w-full text-gray-700 font-medium" 
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
                                     required
                                 />
                             </div>
@@ -87,6 +91,9 @@ const LoginPage = () => {
                         >
                             {loading ? 'Logging in...' : 'Log In'}
                         </button>
+                        <p className="mt-4 text-center text-[10px] text-gray-400 font-bold  bg-gray-50 py-2 rounded-xl border border-dashed border-gray-200">
+                            Demo Access: <span className="text-red-500 select-all font-black ml-1">9981345677 / balu</span>
+                        </p>
                     </form>
 
                     <div className="mt-10 text-center">

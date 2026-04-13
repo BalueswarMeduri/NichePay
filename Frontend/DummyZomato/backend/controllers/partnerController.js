@@ -104,23 +104,28 @@ exports.getDailyLog = async (req, res) => {
     }
     
     if (!log) {
+      // Use partnerId from the found partner object if available
+      const pId = partner ? partner.partnerId : partnerId;
+      
+      const hourlyActivity = [
+        { timeSlot: "10:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
+        { timeSlot: "11:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
+        { timeSlot: "12:00", isOnline: false, ordersAccepted: 0, earnings: 0 },
+        { timeSlot: "13:00", isOnline: pId === "42997" ? true : Math.random() > 0.3, ordersAccepted: 0, earnings: 0 },
+        { timeSlot: "14:00", isOnline: pId === "42997" ? true : Math.random() > 0.3, ordersAccepted: 0, earnings: 0 },
+        { timeSlot: "15:00", isOnline: pId === "42997" ? true : Math.random() > 0.2, ordersAccepted: 0, earnings: 0 },
+        { timeSlot: "16:00", isOnline: pId === "42997" ? true : Math.random() > 0.2, ordersAccepted: 0, earnings: 0 },
+        { timeSlot: "17:00", isOnline: pId === "42997" ? true : Math.random() > 0.2, ordersAccepted: 0, earnings: 0 },
+        { timeSlot: "18:00", isOnline: pId === "42997" ? true : Math.random() > 0.2, ordersAccepted: 0, earnings: 0 }
+      ];
+
       return res.status(200).json({ 
         log: { 
-          partner: partnerId, 
+          partner: pId, 
           date, 
           totalOrders: 0, 
           totalEarnings: 0, 
-          hourlyActivity: [
-            { timeSlot: "10:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "11:00", isOnline: true, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "12:00", isOnline: false, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "13:00", isOnline: Math.random() > 0.3, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "14:00", isOnline: Math.random() > 0.3, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "15:00", isOnline: Math.random() > 0.2, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "16:00", isOnline: Math.random() > 0.2, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "17:00", isOnline: Math.random() > 0.2, ordersAccepted: 0, earnings: 0 },
-            { timeSlot: "18:00", isOnline: Math.random() > 0.2, ordersAccepted: 0, earnings: 0 }
-          ] 
+          hourlyActivity
         } 
       });
     }

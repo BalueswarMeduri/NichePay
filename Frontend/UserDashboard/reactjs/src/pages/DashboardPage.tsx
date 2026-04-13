@@ -39,8 +39,8 @@ function getGreeting() {
 
 export default function DashboardPage() {
     const [showLocationModal, setShowLocationModal] = useState(true);
-    const [manualCity, setManualCity] = useState("Bangalore");
-    const [manualPincode, setManualPincode] = useState("560001");
+    const [manualCity, setManualCity] = useState("Mangalagiri");
+    const [manualPincode, setManualPincode] = useState("522503");
     const [manualDate, setManualDate] = useState("2026-03-18");
     const [isFetchingLocation, setIsFetchingLocation] = useState(false);
     const [payouts, setPayouts] = useState<Payout[]>([]);
@@ -110,7 +110,7 @@ export default function DashboardPage() {
                         }
                     } catch (e) {}
                     if (attempts >= 15) {
-                        toast.error("No valid disruption found for this location.", { id: "sim-toast" });
+                        toast.error("No valid disruption found for this location or User is in offline mode.", { id: "sim-toast" });
                         clearInterval(pollInterval);
                     }
                 }, 2000);
@@ -167,53 +167,104 @@ export default function DashboardPage() {
             <AnimatePresence>
                 {showLocationModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-xl p-4">
-                        <motion.div
-                            initial={{ scale: 0.92, opacity: 0, y: 20 }}
-                            animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.92, opacity: 0 }}
-                            transition={spring}
-                            className="bg-black border border-white/10 p-7 rounded-2xl shadow-2xl max-w-sm w-full text-white relative"
-                        >
-                            <button onClick={() => setShowLocationModal(false)} className="absolute top-4 right-4 text-white/30 hover:text-white p-1.5 hover:bg-white/5 rounded-lg transition-colors">
-                                <FiX size={15} />
+                        className="fixed inset-0 bg-black/80 z-[100] backdrop-blur-xl overflow-y-auto py-10 px-4">
+                        <div className="flex min-h-full items-center justify-center">
+                            <motion.div
+                                initial={{ scale: 0.92, opacity: 0, y: 20 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                exit={{ scale: 0.92, opacity: 0 }}
+                                transition={spring}
+                                className="bg-black border border-white/10 p-6 md:p-8 rounded-3xl shadow-2xl max-w-4xl w-full text-white relative overflow-hidden my-auto"
+                            >
+                            <div className="absolute -top-24 -left-24 size-48 bg-primary-600 blur-[100px] opacity-20 pointer-events-none" />
+                            
+                            <button onClick={() => setShowLocationModal(false)} className="absolute top-6 right-6 text-white/30 hover:text-white p-2 hover:bg-white/5 rounded-xl transition-colors z-20">
+                                <FiX size={18} />
                             </button>
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary-500">
-                                    <FiMapPin className="size-4" />
-                                </div>
-                                <div>
-                                    <h2 className="text-sm font-semibold">Set Work Location</h2>
-                                    <p className="text-[11px] text-slate-500">For disruption simulation</p>
-                                </div>
-                            </div>
-                            <motion.button whileTap={{ scale: 0.97 }} onClick={handleCurrentLocation}
-                                className="w-full py-2.5 bg-primary-600 hover:bg-primary-500 rounded-xl font-medium text-sm mb-4 flex justify-center items-center gap-2 transition-colors shadow-lg shadow-primary-600/20">
-                                <FiMapPin size={13} /> Use Live GPS
-                            </motion.button>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="h-px bg-white/5 flex-1" />
-                                <span className="text-[10px] text-slate-600 uppercase tracking-widest">or manual</span>
-                                <div className="h-px bg-white/5 flex-1" />
-                            </div>
-                            <form onSubmit={handleManualLocation} className="space-y-3">
-                                {[
-                                    { label: "City", val: manualCity, set: setManualCity, ph: "e.g. Vijayawada...", type: "text", req: true },
-                                    { label: "Pincode", val: manualPincode, set: setManualPincode, ph: "e.g. 522503", type: "text", req: false },
-                                    { label: "Simulate Date", val: manualDate, set: setManualDate, ph: "", type: "date", req: true },
-                                ].map(f => (
-                                    <div key={f.label}>
-                                        <label className="text-[10px] text-slate-500 uppercase tracking-widest font-medium mb-1.5 block">{f.label}</label>
-                                        <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} required={f.req}
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary-500/50 text-white placeholder:text-slate-700 transition-colors" />
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-start relative z-10">
+                                {/* Left Side: Scenario Info */}
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="size-10 rounded-xl bg-primary-600/20 border border-primary-500/30 flex items-center justify-center text-primary-400">
+                                            <FiAlertTriangle className="size-5" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-bold tracking-tight">Technical Simulation</h2>
+                                            <p className="text-xs text-slate-500 font-medium uppercase tracking-widest">Demo Sandbox Environment</p>
+                                        </div>
                                     </div>
-                                ))}
-                                <button type="submit" disabled={isFetchingLocation}
-                                    className="w-full py-2.5 bg-white/5 hover:bg-white/8 rounded-xl text-sm border border-white/10 transition-colors disabled:opacity-40">
-                                    {isFetchingLocation ? "Locating..." : "Fetch Smart Report"}
-                                </button>
-                            </form>
-                        </motion.div>
+
+                                    <div className="space-y-4">
+                                        <div className="p-5 bg-white/5 border border-white/10 rounded-2xl space-y-3">
+                                            <h4 className="text-[11px] font-bold uppercase tracking-wider text-primary-400">Why this simulation exists?</h4>
+                                            <p className="text-xs text-slate-400 leading-relaxed italic">
+                                                In the real world, NichePay tracks user location <strong>automatically</strong> in the background. For this demo, we provide a manual trigger for judges to verify our parametric model.
+                                            </p>
+                                        </div>
+
+                                        <div className="p-5 bg-white/5 border border-white/10 rounded-2xl space-y-4">
+                                            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Hackathon Test Scenario</h4>
+                                            
+                                            <div className="space-y-2">
+                                                <p className="text-sm text-slate-200 leading-snug">
+                                                    On <span className="text-primary-400 font-semibold">18-03-2026</span>, heavy rainfall was recorded in <span className="text-primary-400 font-semibold">Mangalagiri</span> between <span className="text-white font-medium">3:00 PM – 5:00 PM</span>.
+                                                </p>
+                                                <p className="text-xs text-slate-400">
+                                                    Zomato logs confirm the partner was <span className="text-green-400">Online</span> but accepted <span className="text-red-400">Zero Orders</span>, qualifying for a payout.
+                                                </p>
+                                                <p className="text-[10px] text-slate-500 pt-1">
+                                                    Mock logs generated via: <a href="http://nichepay.duckdns.org:3001/" target="_blank" rel="noopener noreferrer" className="text-primary-400 hover:underline">nichepay.duckdns.org:3001</a>
+                                                </p>
+                                            </div>
+
+                                            <div className="pt-2 border-t border-white/5">
+                                                <p className="text-[10px] text-slate-500 italic">
+                                                    * Note: Idempotency checks are disabled for testing. You may trigger this same date multiple times to see the chart react.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Side: The Form */}
+                                <div className="bg-white/3 border border-white/10 p-6 rounded-2xl">
+                                    <h3 className="text-sm font-semibold mb-6 flex items-center gap-2">
+                                        <FiMapPin className="text-primary-500" /> Configure Parameters
+                                    </h3>
+                                    
+                                    <motion.button whileTap={{ scale: 0.97 }} onClick={handleCurrentLocation}
+                                        className="w-full py-3 bg-primary-600 hover:bg-primary-500 rounded-xl font-semibold text-sm mb-6 flex justify-center items-center gap-2 transition-all shadow-lg shadow-primary-600/20 active:shadow-none">
+                                        <FiMapPin size={15} /> Detect Live Location
+                                    </motion.button>
+
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="h-px bg-white/5 flex-1" />
+                                        <span className="text-[10px] text-slate-600 uppercase tracking-widest font-bold">Manual override</span>
+                                        <div className="h-px bg-white/5 flex-1" />
+                                    </div>
+
+                                    <form onSubmit={handleManualLocation} className="space-y-4">
+                                        {[
+                                            { label: "Location / City", val: manualCity, set: setManualCity, ph: "e.g. Mangalagiri", type: "text", req: true },
+                                            { label: "Pincode", val: manualPincode, set: setManualPincode, ph: "e.g. 522503", type: "text", req: false },
+                                            { label: "Simulation Date", val: manualDate, set: setManualDate, ph: "", type: "date", req: true },
+                                        ].map(f => (
+                                            <div key={f.label}>
+                                                <label className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2 block ml-1">{f.label}</label>
+                                                <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} required={f.req}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/50 text-white placeholder:text-slate-700 transition-all font-medium" />
+                                            </div>
+                                        ))}
+                                        <button type="submit" disabled={isFetchingLocation}
+                                            className="w-full py-3.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold border border-white/20 transition-all disabled:opacity-40 group">
+                                            {isFetchingLocation ? "Processing Simulation..." : "Fetch Results"}
+                                        </button>
+                                    </form>
+                                </div>
+                                </div>
+                            </motion.div>
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>

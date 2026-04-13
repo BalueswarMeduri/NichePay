@@ -25,7 +25,7 @@ const Hero = () => {
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center gap-6 justify-center w-full">
-                    <Link to="/register" className="w-full sm:w-auto bg-red-500 text-white px-8 py-3.5 rounded-xl font-bold text-lg hover:bg-red-600 hover:scale-105 transition-all shadow-xl shadow-red-200 flex items-center justify-center gap-3">
+                    <Link to="/login" className="w-full sm:w-auto bg-red-500 text-white px-8 py-3.5 rounded-xl font-bold text-lg hover:bg-red-600 hover:scale-105 transition-all shadow-xl shadow-red-200 flex items-center justify-center gap-3">
                         Join Current Batch <FaArrowRight className="text-lg" />
                     </Link>
                     <div className="text-left py-2 px-1">
