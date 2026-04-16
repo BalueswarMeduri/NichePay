@@ -21,6 +21,7 @@
 12. [Tech Stack](#tech-stack)
 13. [Development Plan](#development-plan)
 14. [Additional Features](#additional-features)
+15. [Pitch Deck](#pitch-deck)
 
 ---
 
@@ -1197,6 +1198,12 @@ Disruptions that were announced and known in advance (planned government holiday
 ### Why These Exclusions Matter for NichePay's Viability
 
 Without these exclusions, a single large-scale correlated event — a pandemic lockdown, a war — would drain the entire risk pool instantly. The ₹30,000 weekly pool built from 1,000 workers' premiums would be wiped out in one day. These exclusions are not a limitation of the product — they are what makes the product financially sustainable and the claims pool protected for legitimate, everyday disruptions like rain and strikes.
+
+---
+
+## Pitch-Deck
+
+### Link : https://drive.google.com/file/d/1wncd36RRcNTryS8sb0rKXmra-SWz8edY/view?usp=drivesdk
 
 ---
 
