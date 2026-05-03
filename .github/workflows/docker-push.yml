@@ -1,36 +1,39 @@
-name: Build and Push Docker Monolith to Docker Hub
+name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
-  # Allow manual triggering
-  workflow_dispatch:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  build-and-push:
+  build-check:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Install dependencies
+        run: npm install
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+      - name: Placeholder test
+        run: echo "No tests yet — CI structure in place"
+
+  build-and-push:
+    needs: build-check
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and Push Monolithic Image
-        uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile.monolith
           push: true
-          # Tags the image as 'latest' and also attaches the short commit SHA for versioning
           tags: |
             balumeduri/nichepay:latest
             balumeduri/nichepay:${{ github.sha }}
